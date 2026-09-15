@@ -146,8 +146,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     // the complete exchange.
     const Role rendered_role = message.role == Role::Tool ? Role::User : message.role;
     if (message.role == Role::Tool) {
-      text = "Tool result for " + message.tool_name + " (" +
-             message.tool_call_id + "): " + text;
+      text = "Tool result for " + message.tool_name + " (" + message.tool_call_id + "): " + text;
     }
     content.push_back(std::move(text));
     chat.push_back({role_name(rendered_role), content.back().c_str()});
@@ -157,9 +156,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     chat.push_back({"system", content.back().c_str()});
   }
 
-  const char* template_name = impl_->config.chat_template_override.empty()
-                                  ? llama_model_chat_template(impl_->model, nullptr)
-                                  : impl_->config.chat_template_override.c_str();
+  const char* template_name = impl_->config.chat_template_override.empty() ? llama_model_chat_template(impl_->model, nullptr) : impl_->config.chat_template_override.c_str();
   const int32_t size = llama_chat_apply_template(template_name, chat.data(), chat.size(), true, nullptr, 0);
   if (size <= 0) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not apply the chat template"});
   std::string prompt(static_cast<std::size_t>(size) + 1, '\0');
@@ -168,12 +165,10 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
 
   const llama_vocab* vocab = llama_model_get_vocab(impl_->model);
   std::vector<llama_token> tokens(prompt.size() + 32);
-  int token_count = llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(),
-                                   static_cast<int32_t>(tokens.size()), true, true);
+  int token_count = llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
   if (token_count < 0) {
     tokens.resize(static_cast<std::size_t>(-token_count));
-    token_count = llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(),
-                                 static_cast<int32_t>(tokens.size()), true, true);
+    token_count = llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
   }
   if (token_count <= 0) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not tokenize the prompt"});
   tokens.resize(static_cast<std::size_t>(token_count));
