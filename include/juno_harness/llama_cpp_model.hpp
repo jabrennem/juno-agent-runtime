@@ -20,8 +20,14 @@ namespace juno::harness {
 /** Configuration for the LlamaCpp model. */
 struct LlamaCppConfig {
   std::string model_path;
+
+  // Maximum number of tokens to keep in the context window.
   std::size_t context_size{4096};
+
+  // Number of batches to process in parallel. This can improve throughput but may increase latency.
   std::size_t batch_size{512};
+  
+  // Number of threads to use for inference. If 0, the default number of threads will be used.
   unsigned int threads{0};
   std::string chat_template_override;
 };
@@ -40,9 +46,7 @@ class LlamaCppModel final : public Model {
   LlamaCppModel& operator=(const LlamaCppModel&) = delete;
 
   /** Generates text based on the given request, invoking the callback for events. */
-  Result<GenerationResponse> generate(const GenerationRequest& request,
-                                      const EventCallback& callback,
-                                      std::stop_token stop_token) override;
+  Result<GenerationResponse> generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) override;
 
  private:
   struct Impl;

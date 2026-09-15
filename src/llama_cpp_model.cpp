@@ -19,9 +19,13 @@
 #include <nlohmann/json.hpp>
 #include <llama.h>
 
+// The llama.cpp library is used for inference with GGUF models. It provides functions for model loading, tokenization, and generation.
 namespace juno::harness {
+
+// Implementation of the LlamaCppModel class, which manages inference sessions using llama.cpp.
 namespace {
 
+// Returns the string representation of a Role enum value.
 const char* role_name(const Role role) {
   switch (role) {
     case Role::System: return "system";
@@ -32,6 +36,7 @@ const char* role_name(const Role role) {
   return "user";
 }
 
+/** Returns the JSON string describing the available tools. */
 std::string tool_protocol(const std::span<const ToolDefinition> tools) {
   if (tools.empty()) return {};
   nlohmann::json definitions = nlohmann::json::array();
@@ -45,6 +50,7 @@ std::string tool_protocol(const std::span<const ToolDefinition> tools) {
          "{\"tool_calls\":[{\"id\":\"unique-id\",\"name\":\"tool-name\",\"arguments\":{}}]}.";
 }
 
+/** Parses the model's output text to extract tool calls and content. */
 Result<GenerationResponse> parse_response(const std::string& text) {
   try {
     nlohmann::json parsed;
@@ -122,9 +128,8 @@ Result<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig conf
   return std::shared_ptr<LlamaCppModel>(new LlamaCppModel(std::move(impl)));
 }
 
-Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request,
-                                                      const EventCallback& callback,
-                                                      std::stop_token stop_token) {
+// Generates text based on the given request, invoking the callback for events.
+Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) {
   std::scoped_lock lock(impl_->mutex);
   if (stop_token.stop_requested()) return Error{ErrorCode::Cancelled, "generation was cancelled"};
 

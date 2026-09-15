@@ -35,16 +35,16 @@ struct AgentSpec {
 /** One independent conversation with an Agent. */
 class Conversation {
 public:
-  [[nodiscard]] Result<RunResult> run(std::string_view user_message,
-                                      EventCallback callback = {},
-                                      std::stop_token stop_token = {});
+  // Generates a response to the given user message, invoking the callback for events.
+  [[nodiscard]] Result<RunResult> run(std::string_view user_message, EventCallback callback = {}, std::stop_token stop_token = {});
+  
+  // Returns the history of messages in this conversation.
   [[nodiscard]] const std::vector<Message> &history() const;
   void clear();
 
 private:
   friend class Agent;
-  Conversation(std::shared_ptr<Model> model,
-               std::shared_ptr<const AgentSpec> spec);
+  Conversation(std::shared_ptr<Model> model, std::shared_ptr<const AgentSpec> spec);
 
   std::shared_ptr<Model> model_;
   std::shared_ptr<const AgentSpec> spec_;
