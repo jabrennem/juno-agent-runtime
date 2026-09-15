@@ -23,13 +23,13 @@ namespace
     spec.tools = {
         {{"inspect_audio_files", "Inspect the raw multitrack WAV file manifest.",
           R"({"type":"object","properties":{"folder":{"type":"string"}},"required":["folder"]})"},
-         [](std::string_view) -> Result<std::string>
+         [](std::string_view) -> Expected<std::string>
          {
            return R"({"files":["Kick.wav","Snare.wav","Bass DI.wav","Rhythm L.wav","Rhythm R.wav","Lead Vocal.wav"],"sample_rate":48000,"bit_depth":24})";
          }},
         {{"inspect_mix_template", "Inspect the target mix-session template.",
           R"({"type":"object","properties":{"template":{"type":"string"}},"required":["template"]})"},
-         [](std::string_view) -> Result<std::string>
+         [](std::string_view) -> Expected<std::string>
          {
            return R"({"folders":["Drums","Bass","Guitars","Vocals"],"buses":["Drum Bus","Music Bus","Vocal Bus"],"effects":["Plate","Delay"],"sample_rate":48000})";
          }},

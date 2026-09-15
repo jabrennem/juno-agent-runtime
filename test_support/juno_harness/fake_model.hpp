@@ -27,9 +27,9 @@ class FakeModel final : public Model {
  public:
   explicit FakeModel(std::vector<FakeStep> script);
 
-  Result<GenerationResponse> generate(const GenerationRequest& request,
-                                      const EventCallback& callback,
-                                      std::stop_token stop_token) override;
+  Expected<GenerationResponse> generate(const GenerationRequest& request,
+                                        const EventCallback& callback,
+                                        std::stop_token stop_token) override;
   [[nodiscard]] std::size_t remaining_steps() const;
 
  private:

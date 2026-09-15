@@ -51,7 +51,7 @@ std::string tool_protocol(const std::span<const ToolDefinition> tools) {
 }
 
 /** Parses the model's output text to extract tool calls and content. */
-Result<GenerationResponse> parse_response(const std::string& text) {
+Expected<GenerationResponse> parse_response(const std::string& text) {
   try {
     nlohmann::json parsed;
     std::string tool_call_text;
@@ -87,7 +87,7 @@ Result<GenerationResponse> parse_response(const std::string& text) {
     response.content = tool_call_text;
     for (const auto& item : parsed.at("tool_calls")) {
       if (!item.contains("name") || !item.at("name").is_string()) {
-        return Error{ErrorCode::InvalidModelOutput, "tool call did not include a string name"};
+        return make_unexpected(Error{ErrorCode::InvalidModelOutput, "tool call did not include a string name"});
       }
       ToolCall call;
       call.id = item.value("id", "call-" + std::to_string(response.tool_calls.size() + 1));
@@ -99,7 +99,7 @@ Result<GenerationResponse> parse_response(const std::string& text) {
   } catch (const nlohmann::json::parse_error&) {
     return GenerationResponse{text, {}};
   } catch (const std::exception& exception) {
-    return Error{ErrorCode::InvalidModelOutput, exception.what()};
+    return make_unexpected(Error{ErrorCode::InvalidModelOutput, exception.what()});
   }
 }
 
@@ -117,21 +117,21 @@ struct LlamaCppModel::Impl {
 LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 LlamaCppModel::~LlamaCppModel() = default;
 
-Result<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig config) {
-  if (config.model_path.empty()) return Error{ErrorCode::InvalidConfiguration, "a GGUF model path is required"};
-  if (!std::filesystem::exists(config.model_path)) return Error{ErrorCode::ModelLoadFailed, "GGUF model file does not exist"};
+Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig config) {
+  if (config.model_path.empty()) return make_unexpected(Error{ErrorCode::InvalidConfiguration, "a GGUF model path is required"});
+  if (!std::filesystem::exists(config.model_path)) return make_unexpected(Error{ErrorCode::ModelLoadFailed, "GGUF model file does not exist"});
   llama_backend_init();
   auto impl = std::make_unique<Impl>(std::move(config));
   auto params = llama_model_default_params();
   impl->model = llama_model_load_from_file(impl->config.model_path.c_str(), params);
-  if (!impl->model) return Error{ErrorCode::ModelLoadFailed, "llama.cpp could not load the GGUF model"};
+  if (!impl->model) return make_unexpected(Error{ErrorCode::ModelLoadFailed, "llama.cpp could not load the GGUF model"});
   return std::shared_ptr<LlamaCppModel>(new LlamaCppModel(std::move(impl)));
 }
 
 // Generates text based on the given request, invoking the callback for events.
-Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) {
+Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) {
   std::scoped_lock lock(impl_->mutex);
-  if (stop_token.stop_requested()) return Error{ErrorCode::Cancelled, "generation was cancelled"};
+  if (stop_token.stop_requested()) return make_unexpected(Error{ErrorCode::Cancelled, "generation was cancelled"});
 
   std::vector<std::string> content;
   std::vector<llama_chat_message> chat;
@@ -161,7 +161,7 @@ Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& requ
                                   ? llama_model_chat_template(impl_->model, nullptr)
                                   : impl_->config.chat_template_override.c_str();
   const int32_t size = llama_chat_apply_template(template_name, chat.data(), chat.size(), true, nullptr, 0);
-  if (size <= 0) return Error{ErrorCode::GenerationFailed, "llama.cpp could not apply the chat template"};
+  if (size <= 0) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not apply the chat template"});
   std::string prompt(static_cast<std::size_t>(size) + 1, '\0');
   llama_chat_apply_template(template_name, chat.data(), chat.size(), true, prompt.data(), size + 1);
   prompt.resize(static_cast<std::size_t>(size));
@@ -175,10 +175,10 @@ Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& requ
     token_count = llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(),
                                  static_cast<int32_t>(tokens.size()), true, true);
   }
-  if (token_count <= 0) return Error{ErrorCode::GenerationFailed, "llama.cpp could not tokenize the prompt"};
+  if (token_count <= 0) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not tokenize the prompt"});
   tokens.resize(static_cast<std::size_t>(token_count));
   if (tokens.size() + request.config.max_tokens > impl_->config.context_size) {
-    return Error{ErrorCode::ContextLimitExceeded, "prompt and generation budget exceed the configured context"};
+    return make_unexpected(Error{ErrorCode::ContextLimitExceeded, "prompt and generation budget exceed the configured context"});
   }
 
   auto context_params = llama_context_default_params();
@@ -189,11 +189,11 @@ Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& requ
     context_params.n_threads_batch = static_cast<int32_t>(impl_->config.threads);
   }
   llama_context* context = llama_init_from_model(impl_->model, context_params);
-  if (!context) return Error{ErrorCode::GenerationFailed, "llama.cpp could not create an inference context"};
+  if (!context) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not create an inference context"});
   struct ContextGuard { llama_context* value; ~ContextGuard() { llama_free(value); } } context_guard{context};
 
   if (llama_decode(context, llama_batch_get_one(tokens.data(), static_cast<int32_t>(tokens.size()))) != 0) {
-    return Error{ErrorCode::GenerationFailed, "llama.cpp failed to decode the prompt"};
+    return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp failed to decode the prompt"});
   }
 
   auto sampler_params = llama_sampler_chain_default_params();
@@ -206,7 +206,7 @@ Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& requ
   std::string generated;
   int32_t position = static_cast<int32_t>(tokens.size());
   for (std::size_t i = 0; i < request.config.max_tokens; ++i) {
-    if (stop_token.stop_requested()) return Error{ErrorCode::Cancelled, "generation was cancelled"};
+    if (stop_token.stop_requested()) return make_unexpected(Error{ErrorCode::Cancelled, "generation was cancelled"});
     const llama_token token = llama_sampler_sample(sampler, context, -1);
     if (llama_vocab_is_eog(vocab, token)) break;
     llama_sampler_accept(sampler, token);
@@ -223,7 +223,7 @@ Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& requ
     }
     llama_token decoded_token = token;
     if (llama_decode(context, llama_batch_get_one(&decoded_token, 1)) != 0) {
-      return Error{ErrorCode::GenerationFailed, "llama.cpp failed during token generation"};
+      return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp failed during token generation"});
     }
     ++position;
   }
@@ -238,11 +238,11 @@ namespace juno::harness {
 struct LlamaCppModel::Impl {};
 LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 LlamaCppModel::~LlamaCppModel() = default;
-Result<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig) {
-  return Error{ErrorCode::ModelUnavailable, "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"};
+Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig) {
+  return make_unexpected(Error{ErrorCode::ModelUnavailable, "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
 }
-Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest&, const EventCallback&, std::stop_token) {
-  return Error{ErrorCode::ModelUnavailable, "llama.cpp support was not compiled into this build"};
+Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest&, const EventCallback&, std::stop_token) {
+  return make_unexpected(Error{ErrorCode::ModelUnavailable, "llama.cpp support was not compiled into this build"});
 }
 }  // namespace juno::harness
 

@@ -16,7 +16,7 @@
 
 namespace juno::harness {
 
-using ToolHandler = std::function<Result<std::string>(std::string_view arguments_json)>;
+using ToolHandler = std::function<Expected<std::string>(std::string_view arguments_json)>;
 
 /** A tool definition and the handler that executes it. */
 struct Tool {
@@ -36,7 +36,7 @@ struct AgentSpec {
 class Conversation {
 public:
   // Generates a response to the given user message, invoking the callback for events.
-  [[nodiscard]] Result<RunResult> run(std::string_view user_message, EventCallback callback = {}, std::stop_token stop_token = {});
+  [[nodiscard]] Expected<RunResult> run(std::string_view user_message, EventCallback callback = {}, std::stop_token stop_token = {});
   
   // Returns the history of messages in this conversation.
   [[nodiscard]] const std::vector<Message> &history() const;

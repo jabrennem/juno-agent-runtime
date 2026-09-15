@@ -38,7 +38,7 @@ Useful CMake options:
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `JUNO_HARNESS_BUILD_TESTS` | `OFF` | Build the Catch2 unit test executable and register it with CTest. |
-| `JUNO_HARNESS_BUILD_EXAMPLES` | `ON` | Build the three music-workflow playgrounds. |
+| `JUNO_HARNESS_BUILD_EXAMPLES` | `ON` | Build the music-workflow playgrounds. |
 | `JUNO_HARNESS_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp model. Set to `OFF` for a model-free build. |
 | `JUNO_HARNESS_FETCH_DEPS` | `ON` | Fetch pinned dependencies; set `OFF` to use installed packages. |
 
@@ -50,11 +50,10 @@ Each playground takes a path to a local GGUF model:
 
 ```sh
 ./build-llama/juno_session_prep_planning_playground /absolute/path/to/model.gguf
-./build-llama/juno_session_prep_playground /absolute/path/to/model.gguf
 ./build-llama/juno_mix_playground /absolute/path/to/model.gguf
 ```
 
-The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The session-prep and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Harness uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
+The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The planning and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Harness uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
 
 ## Unit tests
 
@@ -109,14 +108,14 @@ auto result = conversation.run("Say hello.", [](const juno::harness::AgentEvent&
 });
 ```
 
-Tools bundle a `ToolDefinition` with a handler returning `Result<std::string>`. The handler receives the model's argument JSON and owns argument validation and result serialization:
+Tools bundle a `ToolDefinition` with a handler returning `Expected<std::string>`. The handler receives the model's argument JSON and owns argument validation and result serialization. `Expected<T>` contains either a value or an `Error`; use `make_unexpected(...)` when returning an error explicitly:
 
 ```cpp
 auto spec = juno::harness::AgentSpec{
     .system_prompt = "Be concise.",
     .tools = {{{
         {"get_labels", "Return the available track labels.", R"({"type":"object"})"},
-        [](std::string_view) -> juno::harness::Result<std::string> {
+        [](std::string_view) -> juno::harness::Expected<std::string> {
           return R"(["drums","bass","guitars","vocals"])");
         }}}};
 juno::harness::Agent agent(model, std::move(spec));

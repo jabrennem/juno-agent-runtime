@@ -1,6 +1,6 @@
 /**
- * @file result.hpp
- * @brief Defines the Result class and related types for error handling in the Juno inference model.
+ * @file expected.hpp
+ * @brief Defines the Expected type and related error handling types.
  */
 
 #pragma once
@@ -32,15 +32,14 @@ struct Error {
   std::string message;
 };
 
-/** Represents the result of an operation in the Juno inference model. */
 template <typename T>
-class Result {
+class Expected {
  public:
-  Result(T value) : value_(std::move(value)) {}
+  Expected(T value) : value_(std::move(value)) {}
   template <typename U>
-    requires(!std::same_as<std::remove_cvref_t<U>, Result> && std::constructible_from<T, U&&>)
-  Result(U&& value) : value_(T(std::forward<U>(value))) {}
-  Result(Error error) : value_(std::move(error)) {}
+    requires(!std::same_as<std::remove_cvref_t<U>, Expected> && std::constructible_from<T, U&&>)
+  Expected(U&& value) : value_(T(std::forward<U>(value))) {}
+  Expected(Error error) : value_(std::move(error)) {}
 
   [[nodiscard]] bool has_value() const { return std::holds_alternative<T>(value_); }
   [[nodiscard]] explicit operator bool() const { return has_value(); }
@@ -53,12 +52,11 @@ class Result {
   std::variant<T, Error> value_;
 };
 
-/** Specialization of Result for void type. */
 template <>
-class Result<void> {
+class Expected<void> {
  public:
-  Result() : error_(std::monostate{}) {}
-  Result(Error error) : error_(std::move(error)) {}
+  Expected() : error_(std::monostate{}) {}
+  Expected(Error error) : error_(std::move(error)) {}
 
   [[nodiscard]] bool has_value() const { return std::holds_alternative<std::monostate>(error_); }
   [[nodiscard]] explicit operator bool() const { return has_value(); }
@@ -68,5 +66,9 @@ class Result<void> {
  private:
   std::variant<std::monostate, Error> error_;
 };
+
+inline Error make_unexpected(Error error) {
+  return error;
+}
 
 }  // namespace juno::harness

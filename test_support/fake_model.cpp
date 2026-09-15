@@ -28,18 +28,18 @@ FakeStep FakeStep::failure(Error error) {
 
 FakeModel::FakeModel(std::vector<FakeStep> script) : script_(std::move(script)) {}
 
-Result<GenerationResponse> FakeModel::generate(const GenerationRequest&, const EventCallback& callback,
+Expected<GenerationResponse> FakeModel::generate(const GenerationRequest&, const EventCallback& callback,
                                                  std::stop_token stop_token) {
   if (stop_token.stop_requested()) {
-    return Error{ErrorCode::Cancelled, "generation was cancelled"};
+    return make_unexpected(Error{ErrorCode::Cancelled, "generation was cancelled"});
   }
   if (next_step_ == script_.size()) {
-    return Error{ErrorCode::GenerationFailed, "fake model script is exhausted"};
+    return make_unexpected(Error{ErrorCode::GenerationFailed, "fake model script is exhausted"});
   }
 
   const FakeStep& step = script_[next_step_++];
   if (step.kind == FakeStep::Kind::Failure) {
-    return step.error;
+    return make_unexpected(step.error);
   }
   if (!step.content.empty() && callback) {
     callback(AgentEvent{EventType::TextDelta, step.content, {}});

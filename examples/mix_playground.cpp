@@ -24,13 +24,13 @@ AgentSpec mix_spec() {
       // Tool for inspecting the current mix state.
       {{"inspect_mix", "Inspect the current mix state.",
         R"({"type":"object","properties":{}})"},
-       [](std::string_view) -> Result<std::string> {
+       [](std::string_view) -> Expected<std::string> {
          return R"({"tracks":6,"fader_moves":0,"plugins_added":0,"mix_peak_db":-6.1,"state":"balanced rough mix"})";
        }},
       // Tool for applying a reversible mix operation.
       {{"apply_mix_operation", "Apply one reversible mix operation.",
         R"({"type":"object","properties":{"operation":{"type":"string"}},"required":["operation"]})"},
-       [](std::string_view arguments) -> Result<std::string> {
+      [](std::string_view arguments) -> Expected<std::string> {
          return std::string{"{\"accepted\":true,\"request\":"} +
                 std::string(arguments) + "}";
        }},

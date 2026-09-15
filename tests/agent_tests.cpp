@@ -32,7 +32,7 @@ TEST_CASE("The agent executes a tool and continues") {
   juno::harness::Agent agent(
       model, {.tools = {{{"echo", "Echo input", R"({"type":"object"})"},
                          [](std::string_view arguments)
-                             -> juno::harness::Result<std::string> {
+                             -> juno::harness::Expected<std::string> {
                            return std::string(arguments);
                          }}}});
   auto conversation = agent.start_conversation();
@@ -55,7 +55,7 @@ TEST_CASE("A tool returns its own JSON result") {
       model,
       {.tools = {
            {{"get_labels", "Return the available track labels.", "{}"},
-            [](std::string_view) -> juno::harness::Result<std::string> {
+            [](std::string_view) -> juno::harness::Expected<std::string> {
               return R"(["drums","bass","guitars","rhythm guitars","lead guitars","vocals"])";
             }}}});
 
@@ -78,7 +78,7 @@ TEST_CASE("Tool results preserve their JSON text") {
       model,
       {.tools = {
            {{"labels", "Return labels.", "{}"},
-            [](std::string_view) -> juno::harness::Result<std::string> {
+            [](std::string_view) -> juno::harness::Expected<std::string> {
               return R"(["quoted \"label\"","line\nbreak","back\\slash"])";
             }}}});
 
@@ -114,7 +114,7 @@ TEST_CASE("Tool handlers own argument validation") {
   juno::harness::Agent agent(
       model,
       {.tools = {{{"echo", "Echo input", "{}"},
-                  [&](std::string_view) -> juno::harness::Result<std::string> {
+                  [&](std::string_view) -> juno::harness::Expected<std::string> {
                     invoked = true;
                     return std::string{"{}"};
                   }}}});
@@ -136,7 +136,7 @@ TEST_CASE("Iteration limits and callback ordering are observable") {
       model,
       {.max_inference_turns = 1,
        .tools = {{{"echo", "Echo", "{}"},
-                  [](std::string_view) -> juno::harness::Result<std::string> {
+                  [](std::string_view) -> juno::harness::Expected<std::string> {
                     return std::string{"{}"};
                   }}}});
   std::vector<juno::harness::EventType> events;
@@ -177,7 +177,7 @@ TEST_CASE("Thrown tool handlers become recoverable tool results") {
   juno::harness::Agent agent(
       model,
       {.tools = {{{"explode", "Always fails", "{}"},
-                  [](std::string_view) -> juno::harness::Result<std::string> {
+                  [](std::string_view) -> juno::harness::Expected<std::string> {
                     throw std::runtime_error("expected failure");
                   }}}});
 

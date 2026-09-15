@@ -36,7 +36,7 @@ struct LlamaCppConfig {
 class LlamaCppModel final : public Model {
  public:
   /** Creates a new LlamaCppModel instance with the given configuration. */
-  static Result<std::shared_ptr<LlamaCppModel>> create(LlamaCppConfig config);
+  static Expected<std::shared_ptr<LlamaCppModel>> create(LlamaCppConfig config);
 
   /** Destroys the LlamaCppModel instance. */
   ~LlamaCppModel() override;
@@ -46,7 +46,7 @@ class LlamaCppModel final : public Model {
   LlamaCppModel& operator=(const LlamaCppModel&) = delete;
 
   /** Generates text based on the given request, invoking the callback for events. */
-  Result<GenerationResponse> generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) override;
+  Expected<GenerationResponse> generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) override;
 
  private:
   struct Impl;

@@ -56,16 +56,16 @@ Conversation::Conversation(std::shared_ptr<Model> model,
  * @param user_message The message from the user to be processed.
  * @param callback The callback function to handle events during the run.
  * @param stop_token A token to request cancellation of the run.
- * @return Result containing RunResult on success or an Error on failure.
+ * @return Expected containing RunResult on success or an Error on failure.
  */
-Result<RunResult> Conversation::run(const std::string_view user_message,
-                                    EventCallback callback,
-                                    std::stop_token stop_token) {
+Expected<RunResult> Conversation::run(const std::string_view user_message,
+                                      EventCallback callback,
+                                      std::stop_token stop_token) {
   if (!model_) {
-    return Error{ErrorCode::InvalidConfiguration, "agent has no model"};
+    return make_unexpected(Error{ErrorCode::InvalidConfiguration, "agent has no model"});
   }
   if (stop_token.stop_requested()) {
-    return Error{ErrorCode::Cancelled, "agent run was cancelled"};
+    return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
   }
 
   // Add the user's message to the conversation history.
@@ -83,7 +83,7 @@ Result<RunResult> Conversation::run(const std::string_view user_message,
     if (stop_token.stop_requested()) {
       emit(callback,
            AgentEvent{EventType::Error, "agent run was cancelled", {}});
-      return Error{ErrorCode::Cancelled, "agent run was cancelled"};
+      return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
     }
 
     // Create the generation request with the current history, tool definitions,
@@ -93,7 +93,7 @@ Result<RunResult> Conversation::run(const std::string_view user_message,
     if (!response) {
       emit(callback,
            AgentEvent{EventType::Error, response.error().message, {}});
-      return response.error();
+      return make_unexpected(response.error());
     }
 
     // Add the assistant's response to the conversation history.
@@ -110,7 +110,7 @@ Result<RunResult> Conversation::run(const std::string_view user_message,
       if (stop_token.stop_requested()) {
         emit(callback,
              AgentEvent{EventType::Error, "agent run was cancelled", call});
-        return Error{ErrorCode::Cancelled, "agent run was cancelled"};
+        return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
       }
       emit(callback, AgentEvent{EventType::ToolStarted, {}, call});
       std::string output;
@@ -148,8 +148,8 @@ Result<RunResult> Conversation::run(const std::string_view user_message,
   emit(callback, AgentEvent{EventType::Error,
                             "agent reached its inference-turn limit",
                             {}});
-  return Error{ErrorCode::IterationLimitExceeded,
-               "agent reached its inference-turn limit"};
+  return make_unexpected(Error{ErrorCode::IterationLimitExceeded,
+                               "agent reached its inference-turn limit"});
 }
 
 const std::vector<Message> &Conversation::history() const { return history_; }

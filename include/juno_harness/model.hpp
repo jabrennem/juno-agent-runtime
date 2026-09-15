@@ -6,7 +6,7 @@
 
 #include <span>
 #include <stop_token>
-#include "juno_harness/result.hpp"
+#include "juno_harness/expected.hpp"
 #include "juno_harness/types.hpp"
 
 /** Namespace for the Juno inference model. */
@@ -29,9 +29,9 @@ struct GenerationResponse {
 class Model {
  public:
   virtual ~Model() = default;
-  virtual Result<GenerationResponse> generate(const GenerationRequest& request,
-                                              const EventCallback& callback,
-                                              std::stop_token stop_token) = 0;
+  virtual Expected<GenerationResponse> generate(const GenerationRequest& request,
+                                                const EventCallback& callback,
+                                                std::stop_token stop_token) = 0;
 };
 
 }  // namespace juno::harness
