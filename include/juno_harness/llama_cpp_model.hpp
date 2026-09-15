@@ -29,6 +29,8 @@ struct LlamaCppConfig {
   
   // Number of threads to use for inference. If 0, the default number of threads will be used.
   unsigned int threads{0};
+
+  // Optional override for the chat template used by the model. If empty, the default template will be used.
   std::string chat_template_override;
 };
 

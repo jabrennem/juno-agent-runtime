@@ -28,7 +28,7 @@ FakeStep FakeStep::failure(Error error) {
 
 FakeModel::FakeModel(std::vector<FakeStep> script) : script_(std::move(script)) {}
 
-Expected<GenerationResponse> FakeModel::generate(const GenerationRequest&, const EventCallback& callback,
+Expected<GenerationResponse> FakeModel::generate(const GenerationRequest& request, const EventCallback& callback,
                                                  std::stop_token stop_token) {
   if (stop_token.stop_requested()) {
     return make_unexpected(Error{ErrorCode::Cancelled, "generation was cancelled"});
@@ -36,6 +36,7 @@ Expected<GenerationResponse> FakeModel::generate(const GenerationRequest&, const
   if (next_step_ == script_.size()) {
     return make_unexpected(Error{ErrorCode::GenerationFailed, "fake model script is exhausted"});
   }
+  reasoning_effort_requests_.push_back(request.reasoning_effort);
 
   const FakeStep& step = script_[next_step_++];
   if (step.kind == FakeStep::Kind::Failure) {
@@ -48,5 +49,9 @@ Expected<GenerationResponse> FakeModel::generate(const GenerationRequest&, const
 }
 
 std::size_t FakeModel::remaining_steps() const { return script_.size() - next_step_; }
+
+const std::vector<ReasoningEffort>& FakeModel::reasoning_effort_requests() const {
+  return reasoning_effort_requests_;
+}
 
 }  // namespace juno::harness

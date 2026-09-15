@@ -17,6 +17,7 @@ struct GenerationRequest {
   std::span<const Message> messages;
   std::span<const ToolDefinition> tools;
   GenerationConfig config;
+  ReasoningEffort reasoning_effort{ReasoningEffort::Medium};
 };
 
 /** Response for a generation request. */

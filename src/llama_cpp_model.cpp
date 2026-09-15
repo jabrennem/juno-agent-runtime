@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <chat.h>
 #include <llama.h>
 
 // The llama.cpp library is used for inference with GGUF models. It provides functions for model loading, tokenization, and generation.
@@ -34,6 +35,21 @@ const char* role_name(const Role role) {
     case Role::Tool: return "tool";
   }
   return "user";
+}
+
+// Returns the string representation of a ReasoningEffort enum value.
+const char* reasoning_effort_name(const ReasoningEffort effort) {
+  switch (effort) {
+    case ReasoningEffort::Low:
+      return "low";
+    case ReasoningEffort::Medium:
+      return "medium";
+    case ReasoningEffort::High:
+      return "high";
+    case ReasoningEffort::None:
+      break;
+  }
+  return "none";
 }
 
 /** Returns the JSON string describing the available tools. */
@@ -104,12 +120,17 @@ Expected<GenerationResponse> parse_response(const std::string& text) {
 
 }  // namespace
 
+// Internal implementation details for LlamaCppModel.
 struct LlamaCppModel::Impl {
   explicit Impl(LlamaCppConfig value) : config(std::move(value)) {}
-  ~Impl() { if (model) llama_model_free(model); }
+  ~Impl() {
+    chat_templates.reset();
+    if (model) llama_model_free(model);
+  }
 
   LlamaCppConfig config;
   llama_model* model{nullptr};
+  common_chat_templates_ptr chat_templates;
   std::mutex mutex;
 };
 
@@ -124,6 +145,12 @@ Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig co
   auto params = llama_model_default_params();
   impl->model = llama_model_load_from_file(impl->config.model_path.c_str(), params);
   if (!impl->model) return make_unexpected(Error{ErrorCode::ModelLoadFailed, "llama.cpp could not load the GGUF model"});
+  try {
+    impl->chat_templates = common_chat_templates_init(impl->model, impl->config.chat_template_override);
+  } catch (const std::exception& exception) {
+    return make_unexpected(
+        Error{ErrorCode::InvalidConfiguration, std::string("llama.cpp could not initialize the chat template: ") + exception.what()});
+  }
   return std::shared_ptr<LlamaCppModel>(new LlamaCppModel(std::move(impl)));
 }
 
@@ -139,13 +166,13 @@ Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig co
  * @return An Expected object containing either a GenerationResponse or an Error.
  */
 Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) {
+  
+  // Lock the mutex to ensure thread safety during generation.
   std::scoped_lock lock(impl_->mutex);
   if (stop_token.stop_requested()) return make_unexpected(Error{ErrorCode::Cancelled, "generation was cancelled"});
 
   // 1. Convert the application-level conversation into llama.cpp chat messages.
-  std::vector<std::string> content;
-  std::vector<llama_chat_message> chat;
-  content.reserve(request.messages.size() + 1);
+  std::vector<common_chat_msg> chat;
   chat.reserve(request.messages.size() + 1);
   for (const Message& message : request.messages) {
     std::string text = message.content;
@@ -154,21 +181,37 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     if (message.role == Role::Tool) {
       text = "Tool result for " + message.tool_name + " (" + message.tool_call_id + "): " + text;
     }
-    content.push_back(std::move(text));
-    chat.push_back({role_name(rendered_role), content.back().c_str()});
+    common_chat_msg chat_message;
+    chat_message.role = role_name(rendered_role);
+    chat_message.content = std::move(text);
+    chat.push_back(std::move(chat_message));
   }
   if (chat.empty() && !request.tools.empty()) {
-    content.push_back(tool_protocol(request.tools));
-    chat.push_back({"system", content.back().c_str()});
+    common_chat_msg chat_message;
+    chat_message.role = "system";
+    chat_message.content = tool_protocol(request.tools);
+    chat.push_back(std::move(chat_message));
   }
 
   // 2. Render the chat messages using the model's chat template.
-  const char* template_name = impl_->config.chat_template_override.empty() ? llama_model_chat_template(impl_->model, nullptr) : impl_->config.chat_template_override.c_str();
-  const int32_t size = llama_chat_apply_template(template_name, chat.data(), chat.size(), true, nullptr, 0);
-  if (size <= 0) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not apply the chat template"});
-  std::string prompt(static_cast<std::size_t>(size) + 1, '\0');
-  llama_chat_apply_template(template_name, chat.data(), chat.size(), true, prompt.data(), size + 1);
-  prompt.resize(static_cast<std::size_t>(size));
+  std::string prompt;
+  try {
+    common_chat_templates_inputs template_inputs;
+    template_inputs.messages = std::move(chat);
+    template_inputs.add_generation_prompt = true;
+    template_inputs.use_jinja = true;
+    template_inputs.enable_thinking =
+        request.reasoning_effort != ReasoningEffort::None;
+    if (template_inputs.enable_thinking) {
+      template_inputs.chat_template_kwargs["reasoning_effort"] = nlohmann::json(reasoning_effort_name(request.reasoning_effort)).dump();
+    }
+    prompt = common_chat_templates_apply(impl_->chat_templates.get(), template_inputs).prompt;
+  } catch (const std::exception& exception) {
+    return make_unexpected(Error{ErrorCode::GenerationFailed, std::string("llama.cpp could not apply the chat template: ") + exception.what()});
+  }
+  if (prompt.empty()) {
+    return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp produced an empty chat prompt"});
+  }
 
   // 3. Tokenize the rendered prompt and enforce the context-window budget.
   const llama_vocab* vocab = llama_model_get_vocab(impl_->model);

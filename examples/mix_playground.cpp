@@ -19,6 +19,7 @@ AgentSpec mix_spec() {
                        "never claim to hear audio that has not "
                        "been provided. Please be concise and avoid repeating "
                        "yourself. If you are unsure of the next step, ask for guidance.";
+  spec.reasoning_effort = ReasoningEffort::High;
   spec.max_inference_turns = 8;
   spec.tools = {
       // Tool for inspecting the current mix state.

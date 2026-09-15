@@ -20,6 +20,33 @@ TEST_CASE("A fake model returns a final response") {
   CHECK(result.value().final_text == "hello");
   CHECK(result.value().inference_turns == 1);
   CHECK(conversation.history().size() == 2);
+  REQUIRE(model->reasoning_effort_requests().size() == 1);
+  CHECK(model->reasoning_effort_requests()[0] ==
+        juno::harness::ReasoningEffort::Medium);
+}
+
+TEST_CASE("AgentSpec propagates reasoning effort to every inference turn") {
+  auto model = std::make_shared<juno::harness::FakeModel>(
+      std::vector<juno::harness::FakeStep>{
+          juno::harness::FakeStep::calls({{"call-1", "echo", "{}"}}),
+          juno::harness::FakeStep::final("done"),
+      });
+  juno::harness::Agent agent(
+      model,
+      {.reasoning_effort = juno::harness::ReasoningEffort::Low,
+       .tools = {{{"echo", "Echo input", "{}"},
+                  [](std::string_view) -> juno::harness::Expected<std::string> {
+                    return std::string{"{}"};
+                  }}}});
+
+  auto result = agent.start_conversation().run("test");
+
+  REQUIRE(result);
+  REQUIRE(model->reasoning_effort_requests().size() == 2);
+  CHECK(model->reasoning_effort_requests()[0] ==
+        juno::harness::ReasoningEffort::Low);
+  CHECK(model->reasoning_effort_requests()[1] ==
+        juno::harness::ReasoningEffort::Low);
 }
 
 TEST_CASE("The agent executes a tool and continues") {

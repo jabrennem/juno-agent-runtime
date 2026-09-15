@@ -85,7 +85,7 @@ Expected<RunResult> Conversation::run(const std::string_view user_message, Event
 
     // Create the generation request with the current history, tool definitions,
     // and generation configuration.
-    const GenerationRequest request{history_, definitions, spec_->generation};
+    const GenerationRequest request{history_, definitions, spec_->generation, spec_->reasoning_effort};
     auto response = model_->generate(request, callback, stop_token);
     if (!response) {
       emit(callback, AgentEvent{EventType::Error, response.error().message, {}});

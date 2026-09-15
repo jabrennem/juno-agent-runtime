@@ -28,6 +28,7 @@ struct Tool {
 struct AgentSpec {
   std::string system_prompt;
   GenerationConfig generation;
+  ReasoningEffort reasoning_effort{ReasoningEffort::Medium};
   std::size_t max_inference_turns{8};
   std::vector<Tool> tools;
 };

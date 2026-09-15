@@ -31,10 +31,12 @@ class FakeModel final : public Model {
                                         const EventCallback& callback,
                                         std::stop_token stop_token) override;
   [[nodiscard]] std::size_t remaining_steps() const;
+  [[nodiscard]] const std::vector<ReasoningEffort>& reasoning_effort_requests() const;
 
  private:
   std::vector<FakeStep> script_;
   std::size_t next_step_{0};
+  std::vector<ReasoningEffort> reasoning_effort_requests_;
 };
 
 }  // namespace juno::harness

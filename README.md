@@ -108,6 +108,23 @@ auto result = conversation.run("Say hello.", [](const juno::harness::AgentEvent&
 });
 ```
 
+Reasoning effort is configured per agent and remains consistent across its
+conversations and tool-loop turns:
+
+```cpp
+juno::harness::Agent planner(
+    model,
+    {.reasoning_effort = juno::harness::ReasoningEffort::High});
+juno::harness::Agent task_doer(
+    model,
+    {.reasoning_effort = juno::harness::ReasoningEffort::Low});
+```
+
+`None` disables thinking for compatible templates. `Low`, `Medium`, and `High`
+enable thinking and pass the corresponding effort level to templates that
+support graded reasoning. Templates supporting only on/off reasoning treat all
+non-`None` levels as enabled.
+
 Tools bundle a `ToolDefinition` with a handler returning `Expected<std::string>`. The handler receives the model's argument JSON and owns argument validation and result serialization. `Expected<T>` contains either a value or an `Error`; use `make_unexpected(...)` when returning an error explicitly:
 
 ```cpp

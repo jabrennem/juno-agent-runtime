@@ -14,6 +14,9 @@ namespace juno::harness {
 /** Represents the role of a message in a conversation. */
 enum class Role { System, User, Assistant, Tool };
 
+/** Requested amount of model reasoning before producing a response. */
+enum class ReasoningEffort { None, Low, Medium, High };
+
 /** Represents a call to a tool during inference. */
 struct ToolCall {
   std::string id;

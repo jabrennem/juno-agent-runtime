@@ -38,6 +38,8 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
             set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
             set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
+            set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)
             # Juno Harness is shared; embed static llama.cpp/ggml objects so an
             # installed SDK library does not point at its build tree.
             set(JUNO_HARNESS_PREVIOUS_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
@@ -45,6 +47,11 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
             FetchContent_MakeAvailable(llama_cpp)
             set(BUILD_SHARED_LIBS "${JUNO_HARNESS_PREVIOUS_BUILD_SHARED_LIBS}")
         endif()
+    endif()
+
+    if(NOT TARGET llama-common)
+        message(FATAL_ERROR
+            "Juno Harness requires llama.cpp's llama-common target for Jinja chat-template options")
     endif()
 
     if(NOT TARGET nlohmann_json::nlohmann_json)
@@ -63,11 +70,14 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
     # implementation linkage and keeps llama.cpp out of public headers.
     # Link through a build-tree file path so this private implementation detail
     # is not emitted as a required target in JunoHarnessTargets.cmake.
-    add_dependencies(juno_harness llama)
+    add_dependencies(juno_harness llama llama-common llama-common-base)
     target_link_libraries(juno_harness PRIVATE
+        "$<TARGET_FILE:llama-common>"
+        "$<TARGET_FILE:llama-common-base>"
         "$<TARGET_FILE:llama>"
         "$<TARGET_GENEX_EVAL:llama,$<TARGET_PROPERTY:llama,INTERFACE_LINK_LIBRARIES>>")
     target_include_directories(juno_harness PRIVATE
+        "$<TARGET_PROPERTY:llama-common,INTERFACE_INCLUDE_DIRECTORIES>"
         "$<TARGET_PROPERTY:llama,INTERFACE_INCLUDE_DIRECTORIES>"
         "$<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>")
 endif()
