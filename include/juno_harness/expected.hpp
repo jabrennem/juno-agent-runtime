@@ -1,6 +1,7 @@
 /**
  * @file expected.hpp
- * @brief Defines the Expected type and related error handling types.
+ * @brief Defines the Expected type and related error handling types. Expected<T> = T or Error
+ * Essentially Expected<T> is a std::variant<T, Error> with some convenience methods.
  */
 
 #pragma once
