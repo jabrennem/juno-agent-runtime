@@ -47,10 +47,38 @@ std::string tool_protocol(const std::span<const ToolDefinition> tools) {
 
 Result<GenerationResponse> parse_response(const std::string& text) {
   try {
-    const auto parsed = nlohmann::json::parse(text);
+    nlohmann::json parsed;
+    std::string tool_call_text;
+
+    // Models commonly put tool JSON after a private reasoning block, e.g.
+    // `<think>...</think>{"tool_calls":[...]}`. Try the complete response
+    // first, then each JSON object embedded in the response.
+    try {
+      parsed = nlohmann::json::parse(text);
+      tool_call_text = text;
+    } catch (const nlohmann::json::parse_error&) {
+      for (std::size_t offset = text.find('{'); offset != std::string::npos;
+           offset = text.find('{', offset + 1)) {
+        try {
+          auto candidate = nlohmann::json::parse(text.substr(offset));
+          if (candidate.contains("tool_calls") &&
+              candidate.at("tool_calls").is_array()) {
+            parsed = std::move(candidate);
+            tool_call_text = text.substr(offset);
+            break;
+          }
+        } catch (const nlohmann::json::parse_error&) {
+          // Keep looking; an earlier brace may belong to the reasoning text.
+        }
+      }
+      if (tool_call_text.empty()) return GenerationResponse{text, {}};
+    }
+
     if (!parsed.contains("tool_calls") || !parsed.at("tool_calls").is_array()) return GenerationResponse{text, {}};
+    // Keep the assistant's tool-call JSON in the transcript. The next model
+    // turn needs to see the request as well as the tool result.
     GenerationResponse response;
-    response.content = parsed.value("content", "");
+    response.content = tool_call_text;
     for (const auto& item : parsed.at("tool_calls")) {
       if (!item.contains("name") || !item.at("name").is_string()) {
         return Error{ErrorCode::InvalidModelOutput, "tool call did not include a string name"};
@@ -107,8 +135,17 @@ Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& requ
   for (const Message& message : request.messages) {
     std::string text = message.content;
     if (message.role == Role::System) text += tool_protocol(request.tools);
+    // The playground uses a small JSON protocol rather than native provider
+    // tool calling. Present the result as a user-visible protocol message so
+    // chat templates that do not implement the `tool` role can still render
+    // the complete exchange.
+    const Role rendered_role = message.role == Role::Tool ? Role::User : message.role;
+    if (message.role == Role::Tool) {
+      text = "Tool result for " + message.tool_name + " (" +
+             message.tool_call_id + "): " + text;
+    }
     content.push_back(std::move(text));
-    chat.push_back({role_name(message.role), content.back().c_str()});
+    chat.push_back({role_name(rendered_role), content.back().c_str()});
   }
   if (chat.empty() && !request.tools.empty()) {
     content.push_back(tool_protocol(request.tools));

@@ -8,7 +8,7 @@ Juno Harness SDK is a C++20 SDK for embedding a small, tool-using agent loop in 
 - CMake 3.20 or newer.
 - A C++20 compiler: Apple Clang on macOS, or Clang/GCC on Linux.
 - Git and network access when CMake is fetching dependencies.
-- A GGUF model only when running the llama.cpp playground or real-model smoke test.
+- A GGUF model only when running the llama.cpp playgrounds or a real-model smoke test.
 
 On macOS, llama.cpp selects Metal support when it is available. Linux defaults to CPU; configure llama.cpp’s own CMake options in a parent build if you need CUDA, Vulkan, or another accelerator.
 
@@ -38,21 +38,23 @@ Useful CMake options:
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `JUNO_HARNESS_BUILD_TESTS` | `OFF` | Build the Catch2 unit test executable and register it with CTest. |
-| `JUNO_HARNESS_BUILD_EXAMPLES` | `ON` | Build the llama playground. |
+| `JUNO_HARNESS_BUILD_EXAMPLES` | `ON` | Build the three music-workflow playgrounds. |
 | `JUNO_HARNESS_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp model. Set to `OFF` for a model-free build. |
 | `JUNO_HARNESS_FETCH_DEPS` | `ON` | Fetch pinned dependencies; set `OFF` to use installed packages. |
 
 `build.sh` accepts any additional CMake cache arguments. Set `JUNO_HARNESS_BUILD_TYPE=Release` for an optimized build, set `JUNO_HARNESS_BUILD_DIR` to choose the build directory, and set `JUNO_HARNESS_SKIP_TESTS=1` when you only want compilation. If CMake is installed outside your `PATH`, set `CMAKE_BIN=/path/to/cmake` (and `CTEST_BIN=/path/to/ctest`).
 
-## Run the playground
+## Run the playgrounds
 
-The llama playground takes a path to a local GGUF model and opens an interactive chat:
+Each playground takes a path to a local GGUF model:
 
 ```sh
-./build-llama/juno_harness_playground /absolute/path/to/model.gguf
+./build-llama/juno_session_prep_planning_playground /absolute/path/to/model.gguf
+./build-llama/juno_session_prep_playground /absolute/path/to/model.gguf
+./build-llama/juno_mix_playground /absolute/path/to/model.gguf
 ```
 
-Enter prompts at the `>` prompt. Use `/help`, `/clear`, `/history`, or `/quit` to control the session. Edit the system prompt and context settings in [examples/llama_playground.cpp](/Users/joshbrenneman/Dev/juno-harness-cpp/examples/llama_playground.cpp). Tool-capable models need a compatible chat template. Juno Harness uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
+The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The session-prep and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Harness uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
 
 ## Unit tests
 
@@ -62,7 +64,7 @@ cmake --build build-test
 ctest --test-dir build-test --output-on-failure
 ```
 
-The automated tests link the build-only `juno_harness_test_support` target, which provides `FakeModel`; they do not download a model. They cover final responses, tool loops, malformed calls, unknown tools, iteration limits, callbacks, and independent session histories.
+The automated tests link the build-only `juno_harness_test_support` target, which provides `FakeModel`; they do not download a model. They cover final responses, tool loops, unknown tools, iteration limits, callbacks, handler-owned argument validation, and independent conversation histories.
 
 ## Use from another CMake application
 
@@ -93,56 +95,54 @@ Minimal SDK use:
 
 ```cpp
 #include <memory>
+#include <string_view>
+#include <utility>
 #include "juno_harness/juno_harness.hpp"
 
 auto model_result = juno::harness::LlamaCppModel::create({.model_path = "/path/to/model.gguf"});
 if (!model_result) return 1;
 auto model = model_result.value();
 juno::harness::Agent agent(model, {.system_prompt = "Be concise."});
-auto session = agent.create_session();
-auto result = session.run("Say hello.", [](const juno::harness::AgentEvent& event) {
+auto conversation = agent.start_conversation();
+auto result = conversation.run("Say hello.", [](const juno::harness::AgentEvent& event) {
   // TextDelta, ToolStarted, ToolCompleted, Completed, or Error.
 });
 ```
 
-For a no-argument tool that returns a list of strings, Juno supplies the empty input schema and serializes the result as JSON:
+Tools bundle a `ToolDefinition` with a handler returning `Result<std::string>`. The handler receives the model's argument JSON and owns argument validation and result serialization:
 
 ```cpp
-agent.add_tool(
-    "get_labels",
-    "Return the available track labels.",
-    []() -> std::vector<std::string> {
-      return {
-          "drums",
-          "bass",
-          "guitars",
-          "rhythm guitars",
-          "lead guitars",
-          "vocals",
-      };
-    });
+auto spec = juno::harness::AgentSpec{
+    .system_prompt = "Be concise.",
+    .tools = {{{
+        {"get_labels", "Return the available track labels.", R"({"type":"object"})"},
+        [](std::string_view) -> juno::harness::Result<std::string> {
+          return R"(["drums","bass","guitars","vocals"])");
+        }}}};
+juno::harness::Agent agent(model, std::move(spec));
+auto conversation = agent.start_conversation();
 ```
 
-For argument-bearing tools or other result types, use the advanced `add_tool_with_definition` escape hatch with a `ToolDefinition` and a handler returning `Result<std::string>`. Tool schemas, call arguments, and results use JSON strings. Juno validates that a call is JSON-shaped; application handlers own detailed schema validation.
+Tool schemas, call arguments, and results use JSON strings. The same agent definition can create many independent conversations; each conversation owns its transcript and can be cleared without affecting the others.
 
 ## Runtime model and limitations
 
-- `Agent` holds reusable configuration and registered tools; every `AgentSession` owns an in-memory transcript.
-- Sessions are not reentrant or thread-safe. Use one session per concurrent conversation.
+- `Agent` holds a reusable model and immutable shared `AgentSpec`; every `Conversation` owns an in-memory transcript.
+- Conversations are not reentrant or thread-safe. Use one conversation per concurrent chat.
 - Calls and event callbacks run synchronously, in model order.
 - Tool errors—including unknown tools and handler exceptions—are appended as tool-result messages so a model can recover on its next turn.
 - The v1 loop explicitly fails when its context or inference-turn limit is exceeded. It does not yet summarize, truncate, persist, or retrieve memory.
 - `LlamaCppModel` is in-process and uses RAII to manage the model and per-run inference contexts. Its llama.cpp dependency is isolated from the SDK’s public headers.
-- API-key/cloud models are not implemented yet; implement `Model` to add one without changing `Agent` or `AgentSession`.
+- API-key/cloud models are not implemented yet; implement `Model` to add one without changing `Agent` or `Conversation`.
 
 ## Layout
 
 | Path | Responsibility |
 | --- | --- |
 | `include/juno_harness` | Public SDK API: runtime, messages, tools, errors, and production models. |
-| `src/agent.cpp` | Agent loop, session transcript, tool dispatch, and events. |
+| `src/agent.cpp` | Agent loop, conversation transcript, tool dispatch, and events. |
 | `test_support/fake_model.cpp` | Deterministic scripted model for build-only tests. |
 | `test_support/juno_harness/fake_model.hpp` | Build-only fake model API for tests. |
 | `src/llama_cpp_model.cpp` | Private direct llama.cpp adapter. |
-| `examples` | Editable GGUF playground executable. |
+| `examples` | Independent planning, session-prep, and mixing playground executables. |
 | `tests` | Fake-model unit tests. |

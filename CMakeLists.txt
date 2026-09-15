@@ -83,8 +83,12 @@ if(JUNO_HARNESS_BUILD_TESTS)
 endif()
 
 if(JUNO_HARNESS_BUILD_EXAMPLES)
-    add_executable(juno_harness_playground examples/llama_playground.cpp)
-    target_link_libraries(juno_harness_playground PRIVATE Juno::Harness)
+    add_executable(juno_session_prep_planning_playground
+        examples/session_prep_planning_playground.cpp)
+    add_executable(juno_mix_playground
+        examples/mix_playground.cpp)
+    target_link_libraries(juno_session_prep_planning_playground PRIVATE Juno::Harness)
+    target_link_libraries(juno_mix_playground PRIVATE Juno::Harness)
 endif()
 
 if(JUNO_HARNESS_BUILD_TESTS)
