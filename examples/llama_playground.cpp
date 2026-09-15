@@ -1,8 +1,8 @@
 /**
  * @file llama_playground.cpp
- * @brief Example usage of the Juno Harness SDK with LlamaCpp backend.
+ * @brief Example usage of the Juno Harness SDK with the LlamaCpp model.
  *
- * This example demonstrates how to set up a Juno agent using the LlamaCpp backend,
+ * This example demonstrates how to set up a Juno agent using the LlamaCpp model,
  * run an interactive prompt loop, and handle events during inference. It showcases
  * the basic workflow for interacting with the Juno Harness SDK API.
  *
@@ -24,16 +24,28 @@ int main(int argc, char** argv) {
     return 2;
   }
 
-  // Create the LlamaCpp backend with the specified model path and context size.
-  auto backend = juno::harness::LlamaCppBackend::create({.model_path = argv[1], .context_size = kContextSize});
-  if (!backend) {
-    std::cerr << "Backend setup failed: " << backend.error().message << '\n';
+  // Create the LlamaCpp model with the specified model path and context size.
+  auto model = juno::harness::LlamaCppModel::create({.model_path = argv[1], .context_size = kContextSize});
+  if (!model) {
+    std::cerr << "Model setup failed: " << model.error().message << '\n';
     return 1;
   }
 
-  // Create an agent with the LlamaCpp backend and the specified system prompt.
-  juno::harness::Agent agent(backend.value(), {.system_prompt = kSystemPrompt});
+  // Create an agent with the LlamaCpp model and the specified system prompt.
+  juno::harness::Agent agent(model.value(), {.system_prompt = kSystemPrompt});
   auto session = agent.create_session();
+
+  // Add tools
+  agent.add_tool_with_definition({"list_labels", "List all labels a track can belong to.", }, [](std::string_view) {
+    return std::vector<std::string>{
+        "Drums",
+        "Bass",
+        "Guitars",
+        "Vocals",
+        "Keys",
+        "Effects"
+      };
+  });
 
   // Start the interactive prompt loop.
   std::cout << "Llama playground\n"
@@ -67,6 +79,7 @@ int main(int argc, char** argv) {
     }
     if (user_message.empty()) continue;
 
+    // Run the user message through the agent session and handle events.
     std::cout << "assistant: ";
     auto result = session.run(user_message, [](const juno::harness::AgentEvent& event) {
       if (event.type == juno::harness::EventType::TextDelta) std::cout << event.text << std::flush;

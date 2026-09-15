@@ -1,6 +1,6 @@
 /**
  * @file result.hpp
- * @brief Defines the Result class and related types for error handling in the Juno inference backend.
+ * @brief Defines the Result class and related types for error handling in the Juno inference model.
  */
 
 #pragma once
@@ -13,10 +13,10 @@
 
 namespace juno::harness {
 
-/** Error codes for the Juno inference backend. */
+/** Error codes for the Juno inference model. */
 enum class ErrorCode {
   InvalidConfiguration,
-  BackendUnavailable,
+  ModelUnavailable,
   ModelLoadFailed,
   GenerationFailed,
   InvalidModelOutput,
@@ -26,13 +26,13 @@ enum class ErrorCode {
   Cancelled,
 };
 
-/** Represents an error in the Juno inference backend. */
+/** Represents an error in the Juno inference model. */
 struct Error {
   ErrorCode code;
   std::string message;
 };
 
-/** Represents the result of an operation in the Juno inference backend. */
+/** Represents the result of an operation in the Juno inference model. */
 template <typename T>
 class Result {
  public:

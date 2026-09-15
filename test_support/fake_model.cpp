@@ -1,4 +1,4 @@
-#include "juno_harness/fake_backend.hpp"
+#include "juno_harness/fake_model.hpp"
 
 #include <utility>
 
@@ -26,15 +26,15 @@ FakeStep FakeStep::failure(Error error) {
   return step;
 }
 
-FakeBackend::FakeBackend(std::vector<FakeStep> script) : script_(std::move(script)) {}
+FakeModel::FakeModel(std::vector<FakeStep> script) : script_(std::move(script)) {}
 
-Result<GenerationResponse> FakeBackend::generate(const GenerationRequest&, const EventCallback& callback,
+Result<GenerationResponse> FakeModel::generate(const GenerationRequest&, const EventCallback& callback,
                                                  std::stop_token stop_token) {
   if (stop_token.stop_requested()) {
     return Error{ErrorCode::Cancelled, "generation was cancelled"};
   }
   if (next_step_ == script_.size()) {
-    return Error{ErrorCode::GenerationFailed, "fake backend script is exhausted"};
+    return Error{ErrorCode::GenerationFailed, "fake model script is exhausted"};
   }
 
   const FakeStep& step = script_[next_step_++];
@@ -47,6 +47,6 @@ Result<GenerationResponse> FakeBackend::generate(const GenerationRequest&, const
   return GenerationResponse{step.content, step.tool_calls};
 }
 
-std::size_t FakeBackend::remaining_steps() const { return script_.size() - next_step_; }
+std::size_t FakeModel::remaining_steps() const { return script_.size() - next_step_; }
 
 }  // namespace juno::harness

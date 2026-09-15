@@ -7,12 +7,12 @@ include(CMakePackageConfigHelpers)
 
 option(JUNO_HARNESS_BUILD_TESTS "Build Juno Harness SDK unit tests" OFF)
 option(JUNO_HARNESS_BUILD_EXAMPLES "Build Juno Harness SDK playground executables" ON)
-option(JUNO_HARNESS_ENABLE_LLAMA_CPP "Build the in-process llama.cpp backend" ON)
+option(JUNO_HARNESS_ENABLE_LLAMA_CPP "Build the in-process llama.cpp model" ON)
 option(JUNO_HARNESS_FETCH_DEPS "Fetch third-party dependencies when needed" ON)
 
 add_library(juno_harness SHARED
     src/agent.cpp
-    src/llama_cpp_backend.cpp)
+    src/llama_cpp_model.cpp)
 add_library(Juno::Harness ALIAS juno_harness)
 set_target_properties(juno_harness PROPERTIES EXPORT_NAME Harness)
 
@@ -59,7 +59,7 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
             FetchContent_MakeAvailable(nlohmann_json)
         endif()
     endif()
-    # Backend dependencies stay private: the shared SDK library owns its
+    # Model dependencies stay private: the shared SDK library owns its
     # implementation linkage and keeps llama.cpp out of public headers.
     # Link through a build-tree file path so this private implementation detail
     # is not emitted as a required target in JunoHarnessTargets.cmake.
@@ -74,7 +74,7 @@ endif()
 
 if(JUNO_HARNESS_BUILD_TESTS)
     add_library(juno_harness_test_support STATIC
-        test_support/fake_backend.cpp)
+        test_support/fake_model.cpp)
     add_library(Juno::HarnessTestSupport ALIAS juno_harness_test_support)
     target_link_libraries(juno_harness_test_support PUBLIC Juno::Harness)
     target_include_directories(juno_harness_test_support

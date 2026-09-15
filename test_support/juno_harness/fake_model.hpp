@@ -1,12 +1,12 @@
-/** @file fake_backend.hpp
- *  @brief Defines a fake inference backend for testing purposes.
+/** @file fake_model.hpp
+ *  @brief Defines a fake inference model for testing purposes.
  */
 
 #pragma once
 
 #include <vector>
 
-#include "juno_harness/backend.hpp"
+#include "juno_harness/model.hpp"
 
 namespace juno::harness {
 
@@ -16,16 +16,16 @@ struct FakeStep {
   Kind kind{Kind::Final};
   std::string content;
   std::vector<ToolCall> tool_calls;
-  Error error{ErrorCode::GenerationFailed, "scripted backend failure"};
+  Error error{ErrorCode::GenerationFailed, "scripted model failure"};
 
   static FakeStep final(std::string text);
   static FakeStep calls(std::vector<ToolCall> calls, std::string text = {});
   static FakeStep failure(Error error);
 };
 
-class FakeBackend final : public InferenceBackend {
+class FakeModel final : public Model {
  public:
-  explicit FakeBackend(std::vector<FakeStep> script);
+  explicit FakeModel(std::vector<FakeStep> script);
 
   Result<GenerationResponse> generate(const GenerationRequest& request,
                                       const EventCallback& callback,

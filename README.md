@@ -1,7 +1,7 @@
 # juno-harness-cpp
 A native modern C++ agent harness for real-time creative and production workflows. Initially powered by llama.cpp.
 
-Juno Harness SDK is a C++20 SDK for embedding a small, tool-using agent loop in native applications. It separates agent orchestration, tool execution, in-memory conversation state, and inference backends. The deterministic fake backend is available as build-only test support; llama.cpp is enabled by default for local GGUF inference.
+Juno Harness SDK is a C++20 SDK for embedding a small, tool-using agent loop in native applications. It separates agent orchestration, tool execution, in-memory conversation state, and inference models. The deterministic fake model is available as build-only test support; llama.cpp is enabled by default for local GGUF inference.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ cmake -S . -B build -DJUNO_HARNESS_BUILD_EXAMPLES=ON
 cmake --build build
 ```
 
-The llama backend can also be enabled explicitly:
+The llama.cpp model can also be enabled explicitly:
 
 ```sh
 JUNO_HARNESS_BUILD_DIR=build-llama ./build.sh -DJUNO_HARNESS_ENABLE_LLAMA_CPP=ON
@@ -39,7 +39,7 @@ Useful CMake options:
 | --- | --- | --- |
 | `JUNO_HARNESS_BUILD_TESTS` | `OFF` | Build the Catch2 unit test executable and register it with CTest. |
 | `JUNO_HARNESS_BUILD_EXAMPLES` | `ON` | Build the llama playground. |
-| `JUNO_HARNESS_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp backend. Set to `OFF` for a backend-free build. |
+| `JUNO_HARNESS_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp model. Set to `OFF` for a model-free build. |
 | `JUNO_HARNESS_FETCH_DEPS` | `ON` | Fetch pinned dependencies; set `OFF` to use installed packages. |
 
 `build.sh` accepts any additional CMake cache arguments. Set `JUNO_HARNESS_BUILD_TYPE=Release` for an optimized build, set `JUNO_HARNESS_BUILD_DIR` to choose the build directory, and set `JUNO_HARNESS_SKIP_TESTS=1` when you only want compilation. If CMake is installed outside your `PATH`, set `CMAKE_BIN=/path/to/cmake` (and `CTEST_BIN=/path/to/ctest`).
@@ -62,7 +62,7 @@ cmake --build build-test
 ctest --test-dir build-test --output-on-failure
 ```
 
-The automated tests link the build-only `juno_harness_test_support` target, which provides `FakeBackend`; they do not download a model. They cover final responses, tool loops, malformed calls, unknown tools, iteration limits, callbacks, and independent session histories.
+The automated tests link the build-only `juno_harness_test_support` target, which provides `FakeModel`; they do not download a model. They cover final responses, tool loops, malformed calls, unknown tools, iteration limits, callbacks, and independent session histories.
 
 ## Use from another CMake application
 
@@ -95,17 +95,35 @@ Minimal SDK use:
 #include <memory>
 #include "juno_harness/juno_harness.hpp"
 
-auto backend_result = juno::harness::LlamaCppBackend::create({.model_path = "/path/to/model.gguf"});
-if (!backend_result) return 1;
-auto backend = backend_result.value();
-juno::harness::Agent agent(backend, {.system_prompt = "Be concise."});
+auto model_result = juno::harness::LlamaCppModel::create({.model_path = "/path/to/model.gguf"});
+if (!model_result) return 1;
+auto model = model_result.value();
+juno::harness::Agent agent(model, {.system_prompt = "Be concise."});
 auto session = agent.create_session();
 auto result = session.run("Say hello.", [](const juno::harness::AgentEvent& event) {
   // TextDelta, ToolStarted, ToolCompleted, Completed, or Error.
 });
 ```
 
-Register a tool with a `ToolDefinition` and a handler returning `Result<std::string>`. Tool schemas, call arguments, and results are JSON strings. Juno validates that a call is JSON-shaped; application handlers own detailed schema validation.
+For a no-argument tool that returns a list of strings, Juno supplies the empty input schema and serializes the result as JSON:
+
+```cpp
+agent.add_tool(
+    "get_labels",
+    "Return the available track labels.",
+    []() -> std::vector<std::string> {
+      return {
+          "drums",
+          "bass",
+          "guitars",
+          "rhythm guitars",
+          "lead guitars",
+          "vocals",
+      };
+    });
+```
+
+For argument-bearing tools or other result types, use the advanced `add_tool_with_definition` escape hatch with a `ToolDefinition` and a handler returning `Result<std::string>`. Tool schemas, call arguments, and results use JSON strings. Juno validates that a call is JSON-shaped; application handlers own detailed schema validation.
 
 ## Runtime model and limitations
 
@@ -114,17 +132,17 @@ Register a tool with a `ToolDefinition` and a handler returning `Result<std::str
 - Calls and event callbacks run synchronously, in model order.
 - Tool errors—including unknown tools and handler exceptions—are appended as tool-result messages so a model can recover on its next turn.
 - The v1 loop explicitly fails when its context or inference-turn limit is exceeded. It does not yet summarize, truncate, persist, or retrieve memory.
-- `LlamaCppBackend` is in-process and uses RAII to manage the model and per-run inference contexts. Its llama.cpp dependency is isolated from the SDK’s public headers.
-- API-key/cloud backends are not implemented yet; implement `InferenceBackend` to add one without changing `Agent` or `AgentSession`.
+- `LlamaCppModel` is in-process and uses RAII to manage the model and per-run inference contexts. Its llama.cpp dependency is isolated from the SDK’s public headers.
+- API-key/cloud models are not implemented yet; implement `Model` to add one without changing `Agent` or `AgentSession`.
 
 ## Layout
 
 | Path | Responsibility |
 | --- | --- |
-| `include/juno_harness` | Public SDK API: runtime, messages, tools, errors, and production backends. |
+| `include/juno_harness` | Public SDK API: runtime, messages, tools, errors, and production models. |
 | `src/agent.cpp` | Agent loop, session transcript, tool dispatch, and events. |
-| `test_support/fake_backend.cpp` | Deterministic scripted backend for build-only tests. |
-| `test_support/juno_harness/fake_backend.hpp` | Build-only fake backend API for tests. |
-| `src/llama_cpp_backend.cpp` | Private direct llama.cpp adapter. |
+| `test_support/fake_model.cpp` | Deterministic scripted model for build-only tests. |
+| `test_support/juno_harness/fake_model.hpp` | Build-only fake model API for tests. |
+| `src/llama_cpp_model.cpp` | Private direct llama.cpp adapter. |
 | `examples` | Editable GGUF playground executable. |
-| `tests` | Fake-backend unit tests. |
+| `tests` | Fake-model unit tests. |

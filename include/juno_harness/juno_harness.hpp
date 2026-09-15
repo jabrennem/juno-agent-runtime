@@ -1,13 +1,13 @@
 /**
  * @file juno_harness.hpp
- * @brief Main header file for the Juno inference backend.
+ * @brief Main header file for the Juno inference model.
  *
- * This file includes the necessary headers for using the Juno inference backend,
- * including the Agent class and the LlamaCppBackend class.
+ * This file includes the necessary headers for using the Juno inference model,
+ * including the Agent class and the LlamaCppModel class.
  *
  */
 
 #pragma once
 
 #include "juno_harness/agent.hpp"
-#include "juno_harness/llama_cpp_backend.hpp"
+#include "juno_harness/llama_cpp_model.hpp"

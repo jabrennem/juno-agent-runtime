@@ -5,7 +5,7 @@
 
 namespace {
 
-class PackageConsumerBackend final : public juno::harness::InferenceBackend {
+class PackageConsumerModel final : public juno::harness::Model {
  public:
   juno::harness::Result<juno::harness::GenerationResponse> generate(const juno::harness::GenerationRequest&,
                                                    const juno::harness::EventCallback&,
@@ -17,8 +17,8 @@ class PackageConsumerBackend final : public juno::harness::InferenceBackend {
 }  // namespace
 
 int main() {
-  auto backend = std::make_shared<PackageConsumerBackend>();
-  juno::harness::Agent agent(backend);
+  auto model = std::make_shared<PackageConsumerModel>();
+  juno::harness::Agent agent(model);
   auto session = agent.create_session();
   return session.history().empty() ? 0 : 1;
 }

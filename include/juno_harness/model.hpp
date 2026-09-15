@@ -1,5 +1,5 @@
-/** @file backend.hpp
- *  @brief Defines the interface for the Juno inference backend.
+/** @file model.hpp
+ *  @brief Defines the interface for the Juno inference model.
  */
 
 #pragma once
@@ -9,7 +9,7 @@
 #include "juno_harness/result.hpp"
 #include "juno_harness/types.hpp"
 
-/** Namespace for the Juno inference backend. */
+/** Namespace for the Juno inference model. */
 namespace juno::harness {
 
 /** Request for generating text. */
@@ -25,10 +25,10 @@ struct GenerationResponse {
   std::vector<ToolCall> tool_calls;
 };
 
-/** Base class for all inference backends. */
-class InferenceBackend {
+/** Base class for all inference models. */
+class Model {
  public:
-  virtual ~InferenceBackend() = default;
+  virtual ~Model() = default;
   virtual Result<GenerationResponse> generate(const GenerationRequest& request,
                                               const EventCallback& callback,
                                               std::stop_token stop_token) = 0;

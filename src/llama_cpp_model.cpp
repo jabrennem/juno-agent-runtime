@@ -1,14 +1,14 @@
 /**
- * @file llama_cpp_backend.cpp
- * @brief Implements the LlamaCppBackend class for inference using llama.cpp.
+ * @file llama_cpp_model.cpp
+ * @brief Implements the LlamaCppModel class for inference using llama.cpp.
  *
- * This file contains the implementation of the LlamaCppBackend class, which provides an interface
+ * This file contains the implementation of the LlamaCppModel class, which provides an interface
  * for performing inference using the llama.cpp library. It handles model loading, prompt generation,
  * tokenization, and response parsing.
  *
  */
 
-#include "juno_harness/llama_cpp_backend.hpp"
+#include "juno_harness/llama_cpp_model.hpp"
 
 #include <mutex>
 #include <utility>
@@ -71,7 +71,7 @@ Result<GenerationResponse> parse_response(const std::string& text) {
 
 }  // namespace
 
-struct LlamaCppBackend::Impl {
+struct LlamaCppModel::Impl {
   explicit Impl(LlamaCppConfig value) : config(std::move(value)) {}
   ~Impl() { if (model) llama_model_free(model); }
 
@@ -80,10 +80,10 @@ struct LlamaCppBackend::Impl {
   std::mutex mutex;
 };
 
-LlamaCppBackend::LlamaCppBackend(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
-LlamaCppBackend::~LlamaCppBackend() = default;
+LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
+LlamaCppModel::~LlamaCppModel() = default;
 
-Result<std::shared_ptr<LlamaCppBackend>> LlamaCppBackend::create(LlamaCppConfig config) {
+Result<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig config) {
   if (config.model_path.empty()) return Error{ErrorCode::InvalidConfiguration, "a GGUF model path is required"};
   if (!std::filesystem::exists(config.model_path)) return Error{ErrorCode::ModelLoadFailed, "GGUF model file does not exist"};
   llama_backend_init();
@@ -91,10 +91,10 @@ Result<std::shared_ptr<LlamaCppBackend>> LlamaCppBackend::create(LlamaCppConfig 
   auto params = llama_model_default_params();
   impl->model = llama_model_load_from_file(impl->config.model_path.c_str(), params);
   if (!impl->model) return Error{ErrorCode::ModelLoadFailed, "llama.cpp could not load the GGUF model"};
-  return std::shared_ptr<LlamaCppBackend>(new LlamaCppBackend(std::move(impl)));
+  return std::shared_ptr<LlamaCppModel>(new LlamaCppModel(std::move(impl)));
 }
 
-Result<GenerationResponse> LlamaCppBackend::generate(const GenerationRequest& request,
+Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request,
                                                       const EventCallback& callback,
                                                       std::stop_token stop_token) {
   std::scoped_lock lock(impl_->mutex);
@@ -193,14 +193,14 @@ Result<GenerationResponse> LlamaCppBackend::generate(const GenerationRequest& re
 #else
 
 namespace juno::harness {
-struct LlamaCppBackend::Impl {};
-LlamaCppBackend::LlamaCppBackend(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
-LlamaCppBackend::~LlamaCppBackend() = default;
-Result<std::shared_ptr<LlamaCppBackend>> LlamaCppBackend::create(LlamaCppConfig) {
-  return Error{ErrorCode::BackendUnavailable, "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"};
+struct LlamaCppModel::Impl {};
+LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
+LlamaCppModel::~LlamaCppModel() = default;
+Result<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig) {
+  return Error{ErrorCode::ModelUnavailable, "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"};
 }
-Result<GenerationResponse> LlamaCppBackend::generate(const GenerationRequest&, const EventCallback&, std::stop_token) {
-  return Error{ErrorCode::BackendUnavailable, "llama.cpp support was not compiled into this build"};
+Result<GenerationResponse> LlamaCppModel::generate(const GenerationRequest&, const EventCallback&, std::stop_token) {
+  return Error{ErrorCode::ModelUnavailable, "llama.cpp support was not compiled into this build"};
 }
 }  // namespace juno::harness
 

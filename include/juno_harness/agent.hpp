@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-#include "juno_harness/backend.hpp"
+#include "juno_harness/model.hpp"
 
 namespace juno::harness {
 
@@ -38,8 +38,9 @@ class AgentSession;
 /** Represents an agent that manages inference sessions and tools. */
 class Agent {
  public:
-  Agent(std::shared_ptr<InferenceBackend> backend, AgentConfig config = {});
-  Result<void> add_tool(ToolDefinition definition, ToolHandler handler);
+  Agent(std::shared_ptr<Model> model, AgentConfig config = {});
+  Result<void> add_tool(std::string name, std::string description, std::function<std::vector<std::string>()> handler);
+  Result<void> add_tool_with_definition(ToolDefinition definition, ToolHandler handler);
   [[nodiscard]] AgentSession create_session() const;
 
  private:

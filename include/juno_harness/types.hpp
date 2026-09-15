@@ -1,5 +1,5 @@
 /** @file types.hpp
- *  @brief Defines types used in the Juno inference backend.
+ *  @brief Defines types used in the Juno inference model.
  */
 
 #pragma once
@@ -58,7 +58,7 @@ struct AgentEvent {
 /** Callback type for handling events during inference. */
 using EventCallback = std::function<void(const AgentEvent&)>;
 
-/** Represents the result of a run in the Juno inference backend. */
+/** Represents the result of a run in the Juno inference model. */
 struct RunResult {
   std::string final_text;
   std::vector<Message> messages;
