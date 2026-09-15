@@ -67,8 +67,7 @@ Expected<GenerationResponse> parse_response(const std::string& text) {
            offset = text.find('{', offset + 1)) {
         try {
           auto candidate = nlohmann::json::parse(text.substr(offset));
-          if (candidate.contains("tool_calls") &&
-              candidate.at("tool_calls").is_array()) {
+          if (candidate.contains("tool_calls") && candidate.at("tool_calls").is_array()) {
             parsed = std::move(candidate);
             tool_call_text = text.substr(offset);
             break;
@@ -128,11 +127,22 @@ Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig co
   return std::shared_ptr<LlamaCppModel>(new LlamaCppModel(std::move(impl)));
 }
 
-// Generates text based on the given request, invoking the callback for events.
+/**
+ * This is a heavy function that performs the entire inference process, 
+ * from prompt generation to token sampling and response parsing.
+ * 
+ * Generates a response from the model based on the provided request.
+ *
+ * @param request The generation request containing messages and configuration.
+ * @param callback A callback function to receive streaming events during generation.
+ * @param stop_token A stop token to allow cancellation of the generation process.
+ * @return An Expected object containing either a GenerationResponse or an Error.
+ */
 Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) {
   std::scoped_lock lock(impl_->mutex);
   if (stop_token.stop_requested()) return make_unexpected(Error{ErrorCode::Cancelled, "generation was cancelled"});
 
+  // 1. Convert the application-level conversation into llama.cpp chat messages.
   std::vector<std::string> content;
   std::vector<llama_chat_message> chat;
   content.reserve(request.messages.size() + 1);
@@ -140,10 +150,6 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
   for (const Message& message : request.messages) {
     std::string text = message.content;
     if (message.role == Role::System) text += tool_protocol(request.tools);
-    // The playground uses a small JSON protocol rather than native provider
-    // tool calling. Present the result as a user-visible protocol message so
-    // chat templates that do not implement the `tool` role can still render
-    // the complete exchange.
     const Role rendered_role = message.role == Role::Tool ? Role::User : message.role;
     if (message.role == Role::Tool) {
       text = "Tool result for " + message.tool_name + " (" + message.tool_call_id + "): " + text;
@@ -156,6 +162,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     chat.push_back({"system", content.back().c_str()});
   }
 
+  // 2. Render the chat messages using the model's chat template.
   const char* template_name = impl_->config.chat_template_override.empty() ? llama_model_chat_template(impl_->model, nullptr) : impl_->config.chat_template_override.c_str();
   const int32_t size = llama_chat_apply_template(template_name, chat.data(), chat.size(), true, nullptr, 0);
   if (size <= 0) return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp could not apply the chat template"});
@@ -163,6 +170,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
   llama_chat_apply_template(template_name, chat.data(), chat.size(), true, prompt.data(), size + 1);
   prompt.resize(static_cast<std::size_t>(size));
 
+  // 3. Tokenize the rendered prompt and enforce the context-window budget.
   const llama_vocab* vocab = llama_model_get_vocab(impl_->model);
   std::vector<llama_token> tokens(prompt.size() + 32);
   int token_count = llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), tokens.data(), static_cast<int32_t>(tokens.size()), true, true);
@@ -176,6 +184,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     return make_unexpected(Error{ErrorCode::ContextLimitExceeded, "prompt and generation budget exceed the configured context"});
   }
 
+  // 4. Create an inference context and load the prompt into it.
   auto context_params = llama_context_default_params();
   context_params.n_ctx = static_cast<uint32_t>(impl_->config.context_size);
   context_params.n_batch = static_cast<uint32_t>(std::min(impl_->config.batch_size, impl_->config.context_size));
@@ -191,6 +200,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     return make_unexpected(Error{ErrorCode::GenerationFailed, "llama.cpp failed to decode the prompt"});
   }
 
+  // 5. Configure the sampler that chooses each next token.
   auto sampler_params = llama_sampler_chain_default_params();
   llama_sampler* sampler = llama_sampler_chain_init(sampler_params);
   llama_sampler_chain_add(sampler, llama_sampler_init_top_p(request.config.top_p, 1));
@@ -198,6 +208,7 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
   llama_sampler_chain_add(sampler, llama_sampler_init_dist(request.config.seed));
   struct SamplerGuard { llama_sampler* value; ~SamplerGuard() { llama_sampler_free(value); } } sampler_guard{sampler};
 
+  // 6. Generate, stream, and decode one token at a time.
   std::string generated;
   int32_t position = static_cast<int32_t>(tokens.size());
   for (std::size_t i = 0; i < request.config.max_tokens; ++i) {
@@ -222,6 +233,8 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest& re
     }
     ++position;
   }
+
+  // 7. Interpret the completed text as plain content or tool calls.
   return parse_response(generated);
 }
 

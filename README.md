@@ -8,7 +8,7 @@ Juno Harness SDK is a C++20 SDK for embedding a small, tool-using agent loop in 
 - CMake 3.20 or newer.
 - A C++20 compiler: Apple Clang on macOS, or Clang/GCC on Linux.
 - Git and network access when CMake is fetching dependencies.
-- A GGUF model only when running the llama.cpp playgrounds or a real-model smoke test.
+- A GGUF model when using `LlamaCppModel`, including the llama.cpp playgrounds or a real-model smoke test.
 
 On macOS, llama.cpp selects Metal support when it is available. Linux defaults to CPU; configure llama.cpp’s own CMake options in a parent build if you need CUDA, Vulkan, or another accelerator.
 
@@ -123,6 +123,23 @@ auto conversation = agent.start_conversation();
 ```
 
 Tool schemas, call arguments, and results use JSON strings. The same agent definition can create many independent conversations; each conversation owns its transcript and can be cleared without affecting the others.
+
+## How it works
+
+`Agent` owns a reusable model and shared behavior. Each `Conversation` owns an independent message history. A conversation sends its history to `Model::generate`, executes any returned tool calls, appends the tool results, and repeats until the model returns final text.
+
+```text
+Conversation
+  → Model::generate
+  → GenerationResponse
+  → execute tool calls
+  → append tool results
+  → repeat until final text
+```
+
+`LlamaCppModel` adapts the request into a llama.cpp chat prompt, tokenizes it, generates tokens, streams text events, and parses the completed output.
+
+Juno uses a small JSON tool protocol rather than provider-native tool calling. Tool definitions are included in the prompt, and a model requests a tool by returning JSON in the `tool_calls` shape shown above. Tool results are rendered as ordinary conversation text so chat templates that do not support a native `tool` role can still render the exchange.
 
 ## Runtime model and limitations
 
