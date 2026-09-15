@@ -1,0 +1,52 @@
+#include "juno_harness/fake_backend.hpp"
+
+#include <utility>
+
+namespace juno::harness {
+
+FakeStep FakeStep::final(std::string text) {
+  FakeStep step;
+  step.kind = Kind::Final;
+  step.content = std::move(text);
+  return step;
+}
+
+FakeStep FakeStep::calls(std::vector<ToolCall> calls, std::string text) {
+  FakeStep step;
+  step.kind = Kind::ToolCalls;
+  step.content = std::move(text);
+  step.tool_calls = std::move(calls);
+  return step;
+}
+
+FakeStep FakeStep::failure(Error error) {
+  FakeStep step;
+  step.kind = Kind::Failure;
+  step.error = std::move(error);
+  return step;
+}
+
+FakeBackend::FakeBackend(std::vector<FakeStep> script) : script_(std::move(script)) {}
+
+Result<GenerationResponse> FakeBackend::generate(const GenerationRequest&, const EventCallback& callback,
+                                                 std::stop_token stop_token) {
+  if (stop_token.stop_requested()) {
+    return Error{ErrorCode::Cancelled, "generation was cancelled"};
+  }
+  if (next_step_ == script_.size()) {
+    return Error{ErrorCode::GenerationFailed, "fake backend script is exhausted"};
+  }
+
+  const FakeStep& step = script_[next_step_++];
+  if (step.kind == FakeStep::Kind::Failure) {
+    return step.error;
+  }
+  if (!step.content.empty() && callback) {
+    callback(AgentEvent{EventType::TextDelta, step.content, {}});
+  }
+  return GenerationResponse{step.content, step.tool_calls};
+}
+
+std::size_t FakeBackend::remaining_steps() const { return script_.size() - next_step_; }
+
+}  // namespace juno::harness

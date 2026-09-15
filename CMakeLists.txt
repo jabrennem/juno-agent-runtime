@@ -1,0 +1,133 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(JunoHarness VERSION 0.1.0 LANGUAGES CXX)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+option(JUNO_HARNESS_BUILD_TESTS "Build Juno Harness SDK unit tests" OFF)
+option(JUNO_HARNESS_BUILD_EXAMPLES "Build Juno Harness SDK playground executables" ON)
+option(JUNO_HARNESS_ENABLE_LLAMA_CPP "Build the in-process llama.cpp backend" ON)
+option(JUNO_HARNESS_FETCH_DEPS "Fetch third-party dependencies when needed" ON)
+
+add_library(juno_harness SHARED
+    src/agent.cpp
+    src/llama_cpp_backend.cpp)
+add_library(Juno::Harness ALIAS juno_harness)
+set_target_properties(juno_harness PROPERTIES EXPORT_NAME Harness)
+
+target_compile_features(juno_harness PUBLIC cxx_std_20)
+target_include_directories(juno_harness
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_definitions(juno_harness PRIVATE JUNO_HARNESS_HAS_LLAMA_CPP=$<BOOL:${JUNO_HARNESS_ENABLE_LLAMA_CPP}>)
+
+if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
+    if(NOT TARGET llama)
+        if(NOT JUNO_HARNESS_FETCH_DEPS)
+            find_package(Llama CONFIG REQUIRED)
+        else()
+            include(FetchContent)
+            FetchContent_Declare(llama_cpp
+                GIT_REPOSITORY https://github.com/ggml-org/llama.cpp.git
+                GIT_TAG 7cf1c54a96d4e950ffa614b94babf762803a8de7
+                # This is a commit pin rather than a branch/tag. A shallow
+                # clone may contain the commit object but not its full tree.
+                GIT_PROGRESS TRUE)
+            set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+            # Juno Harness is shared; embed static llama.cpp/ggml objects so an
+            # installed SDK library does not point at its build tree.
+            set(JUNO_HARNESS_PREVIOUS_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
+            set(BUILD_SHARED_LIBS OFF)
+            FetchContent_MakeAvailable(llama_cpp)
+            set(BUILD_SHARED_LIBS "${JUNO_HARNESS_PREVIOUS_BUILD_SHARED_LIBS}")
+        endif()
+    endif()
+
+    if(NOT TARGET nlohmann_json::nlohmann_json)
+        if(NOT JUNO_HARNESS_FETCH_DEPS)
+            find_package(nlohmann_json CONFIG REQUIRED)
+        else()
+            include(FetchContent)
+            FetchContent_Declare(nlohmann_json
+                GIT_REPOSITORY https://github.com/nlohmann/json.git
+                GIT_TAG 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03
+                GIT_SHALLOW TRUE)
+            FetchContent_MakeAvailable(nlohmann_json)
+        endif()
+    endif()
+    # Backend dependencies stay private: the shared SDK library owns its
+    # implementation linkage and keeps llama.cpp out of public headers.
+    # Link through a build-tree file path so this private implementation detail
+    # is not emitted as a required target in JunoHarnessTargets.cmake.
+    add_dependencies(juno_harness llama)
+    target_link_libraries(juno_harness PRIVATE
+        "$<TARGET_FILE:llama>"
+        "$<TARGET_GENEX_EVAL:llama,$<TARGET_PROPERTY:llama,INTERFACE_LINK_LIBRARIES>>")
+    target_include_directories(juno_harness PRIVATE
+        "$<TARGET_PROPERTY:llama,INTERFACE_INCLUDE_DIRECTORIES>"
+        "$<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>")
+endif()
+
+if(JUNO_HARNESS_BUILD_TESTS)
+    add_library(juno_harness_test_support STATIC
+        test_support/fake_backend.cpp)
+    add_library(Juno::HarnessTestSupport ALIAS juno_harness_test_support)
+    target_link_libraries(juno_harness_test_support PUBLIC Juno::Harness)
+    target_include_directories(juno_harness_test_support
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test_support>)
+endif()
+
+if(JUNO_HARNESS_BUILD_EXAMPLES)
+    add_executable(juno_harness_playground examples/llama_playground.cpp)
+    target_link_libraries(juno_harness_playground PRIVATE Juno::Harness)
+endif()
+
+if(JUNO_HARNESS_BUILD_TESTS)
+    include(CTest)
+    if(NOT TARGET Catch2::Catch2WithMain)
+        if(NOT JUNO_HARNESS_FETCH_DEPS)
+            find_package(Catch2 3 CONFIG REQUIRED)
+        else()
+            include(FetchContent)
+            FetchContent_Declare(catch2
+                GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+                GIT_TAG 9827c148c397289df17d3967692619a198032a24
+                GIT_SHALLOW TRUE)
+            FetchContent_MakeAvailable(catch2)
+        endif()
+    endif()
+    add_executable(juno_harness_tests tests/agent_tests.cpp)
+    target_link_libraries(juno_harness_tests PRIVATE
+        Juno::Harness
+        juno_harness_test_support
+        Catch2::Catch2WithMain)
+    add_test(NAME juno_harness_tests COMMAND juno_harness_tests)
+endif()
+
+install(TARGETS juno_harness EXPORT JunoHarnessTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT JunoHarnessTargets
+    FILE JunoHarnessTargets.cmake
+    NAMESPACE Juno::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoHarness)
+
+configure_package_config_file(
+    cmake/JunoHarnessConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoHarness)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoHarness)

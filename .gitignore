@@ -43,6 +43,26 @@
 build/
 Build/
 build-*/
+.build/
+
+# Local installs and generated packaging output
+install/
+dist/
+_install/
+
+# Local model files (never commit large model binaries)
+models/
+*.gguf
+*.gguf.*
+
+# macOS and editor metadata
+.DS_Store
+*.dSYM/
+.vscode/
+.idea/
+
+build/
+build-llama/
 
 # CMake generated files
 CMakeFiles/
