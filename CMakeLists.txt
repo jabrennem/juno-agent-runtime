@@ -23,6 +23,20 @@ target_include_directories(juno_harness
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_definitions(juno_harness PRIVATE JUNO_HARNESS_HAS_LLAMA_CPP=$<BOOL:${JUNO_HARNESS_ENABLE_LLAMA_CPP}>)
 
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    if(NOT JUNO_HARNESS_FETCH_DEPS)
+        find_package(nlohmann_json CONFIG REQUIRED)
+    else()
+        include(FetchContent)
+        FetchContent_Declare(nlohmann_json
+            GIT_REPOSITORY https://github.com/nlohmann/json.git
+            GIT_TAG 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03
+            GIT_SHALLOW TRUE)
+        FetchContent_MakeAvailable(nlohmann_json)
+    endif()
+endif()
+target_link_libraries(juno_harness PUBLIC nlohmann_json::nlohmann_json)
+
 if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
     if(NOT TARGET llama)
         if(NOT JUNO_HARNESS_FETCH_DEPS)
@@ -54,18 +68,6 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
             "Juno Harness requires llama.cpp's llama-common target for Jinja chat-template options")
     endif()
 
-    if(NOT TARGET nlohmann_json::nlohmann_json)
-        if(NOT JUNO_HARNESS_FETCH_DEPS)
-            find_package(nlohmann_json CONFIG REQUIRED)
-        else()
-            include(FetchContent)
-            FetchContent_Declare(nlohmann_json
-                GIT_REPOSITORY https://github.com/nlohmann/json.git
-                GIT_TAG 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03
-                GIT_SHALLOW TRUE)
-            FetchContent_MakeAvailable(nlohmann_json)
-        endif()
-    endif()
     # Model dependencies stay private: the shared SDK library owns its
     # implementation linkage and keeps llama.cpp out of public headers.
     # Link through a build-tree file path so this private implementation detail
@@ -97,8 +99,13 @@ if(JUNO_HARNESS_BUILD_EXAMPLES)
         examples/session_prep_planning_playground.cpp)
     add_executable(juno_mix_playground
         examples/mix_playground.cpp)
+    add_executable(juno_weather_playground
+        examples/weather_playground.cpp)
     target_link_libraries(juno_session_prep_planning_playground PRIVATE Juno::Harness)
     target_link_libraries(juno_mix_playground PRIVATE Juno::Harness)
+    target_link_libraries(juno_weather_playground PRIVATE
+        Juno::Harness
+        nlohmann_json::nlohmann_json)
 endif()
 
 if(JUNO_HARNESS_BUILD_TESTS)

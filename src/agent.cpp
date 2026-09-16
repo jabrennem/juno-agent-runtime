@@ -12,6 +12,21 @@
 namespace juno::harness {
 namespace {
 
+std::string parameter_schema(const std::vector<ToolParameter> &parameters) {
+  JsonObject schema{{"type", "object"}, {"properties", JsonObject::object()}};
+  auto &properties = schema["properties"];
+  JsonObject required = JsonObject::array();
+  for (const auto &parameter : parameters) {
+    properties[parameter.name] = {{"type", parameter.type},
+                                  {"description", parameter.description}};
+    if (parameter.required)
+      required.push_back(parameter.name);
+  }
+  if (!required.empty())
+    schema["required"] = std::move(required);
+  return schema.dump();
+}
+
 std::string tool_error_json(const std::string_view message) {
   std::string escaped;
   escaped.reserve(message.size());
@@ -30,12 +45,56 @@ void emit(const EventCallback &callback, AgentEvent event) {
 
 } // namespace
 
+Tool createTool(const std::string &name, const std::string &description,
+                const std::vector<ToolParameter> &parameters,
+                JsonToolHandler handler) {
+  return Tool{ToolDefinition{name, description, parameter_schema(parameters)},
+              {},
+              std::move(handler)};
+}
+
 Agent::Agent(std::shared_ptr<Model> model, AgentSpec spec)
-    : model_(std::move(model)),
-      spec_(std::make_shared<const AgentSpec>(std::move(spec))) {}
+    : model_(std::move(model)), spec_(std::move(spec)) {}
 
 Conversation Agent::start_conversation() const {
-  return Conversation{model_, spec_};
+  return Conversation{model_, std::make_shared<const AgentSpec>(spec_)};
+}
+
+Conversation Agent::createConversation() const { return start_conversation(); }
+
+Agent &Agent::setSystemPrompt(std::string system_prompt) {
+  spec_.system_prompt = std::move(system_prompt);
+  return *this;
+}
+
+Agent &Agent::setGenerationConfig(GenerationConfig generation) {
+  spec_.generation = generation;
+  return *this;
+}
+
+Agent &Agent::setTemperature(const float temperature) {
+  spec_.generation.temperature = temperature;
+  return *this;
+}
+
+Agent &Agent::setMaxTokens(const std::size_t max_tokens) {
+  spec_.generation.max_tokens = max_tokens;
+  return *this;
+}
+
+Agent &Agent::setReasoningEffort(const ReasoningEffort reasoning_effort) {
+  spec_.reasoning_effort = reasoning_effort;
+  return *this;
+}
+
+Agent &Agent::setMaxInferenceTurns(const std::size_t max_inference_turns) {
+  spec_.max_inference_turns = max_inference_turns;
+  return *this;
+}
+
+Agent &Agent::registerTool(Tool tool) {
+  spec_.tools.push_back(std::move(tool));
+  return *this;
 }
 
 Conversation::Conversation(std::shared_ptr<Model> model,
@@ -58,12 +117,16 @@ Conversation::Conversation(std::shared_ptr<Model> model,
  * @param stop_token A token to request cancellation of the run.
  * @return Expected containing RunResult on success or an Error on failure.
  */
-Expected<RunResult> Conversation::run(const std::string_view user_message, EventCallback callback, std::stop_token stop_token) {
+Expected<RunResult> Conversation::run(const std::string_view user_message,
+                                      EventCallback callback,
+                                      std::stop_token stop_token) {
   if (!model_) {
-    return make_unexpected(Error{ErrorCode::InvalidConfiguration, "agent has no model"});
+    return make_unexpected(
+        Error{ErrorCode::InvalidConfiguration, "agent has no model"});
   }
   if (stop_token.stop_requested()) {
-    return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
+    return make_unexpected(
+        Error{ErrorCode::Cancelled, "agent run was cancelled"});
   }
 
   // Add the user's message to the conversation history.
@@ -79,21 +142,26 @@ Expected<RunResult> Conversation::run(const std::string_view user_message, Event
   // configuration.
   for (std::size_t turn = 1; turn <= spec_->max_inference_turns; ++turn) {
     if (stop_token.stop_requested()) {
-      emit(callback, AgentEvent{EventType::Error, "agent run was cancelled", {}});
-      return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
+      emit(callback,
+           AgentEvent{EventType::Error, "agent run was cancelled", {}});
+      return make_unexpected(
+          Error{ErrorCode::Cancelled, "agent run was cancelled"});
     }
 
     // Create the generation request with the current history, tool definitions,
     // and generation configuration.
-    const GenerationRequest request{history_, definitions, spec_->generation, spec_->reasoning_effort};
+    const GenerationRequest request{history_, definitions, spec_->generation,
+                                    spec_->reasoning_effort};
     auto response = model_->generate(request, callback, stop_token);
     if (!response) {
-      emit(callback, AgentEvent{EventType::Error, response.error().message, {}});
+      emit(callback,
+           AgentEvent{EventType::Error, response.error().message, {}});
       return make_unexpected(response.error());
     }
 
     // Add the assistant's response to the conversation history.
-    history_.push_back(Message{Role::Assistant, response.value().content, response.value().tool_calls});
+    history_.push_back(Message{Role::Assistant, response.value().content,
+                               response.value().tool_calls});
     if (response.value().tool_calls.empty()) {
       RunResult result{response.value().content, history_, turn};
       emit(callback, AgentEvent{EventType::Completed, result.final_text, {}});
@@ -103,23 +171,35 @@ Expected<RunResult> Conversation::run(const std::string_view user_message, Event
     // Process each tool call in the assistant's response.
     for (const ToolCall &call : response.value().tool_calls) {
       if (stop_token.stop_requested()) {
-        emit(callback, AgentEvent{EventType::Error, "agent run was cancelled", call});
-        return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
+        emit(callback,
+             AgentEvent{EventType::Error, "agent run was cancelled", call});
+        return make_unexpected(
+            Error{ErrorCode::Cancelled, "agent run was cancelled"});
       }
       emit(callback, AgentEvent{EventType::ToolStarted, {}, call});
       std::string output;
-      const auto registered = std::find_if(spec_->tools.begin(), spec_->tools.end(), [&call](const Tool &tool) {
+      const auto registered = std::find_if(
+          spec_->tools.begin(), spec_->tools.end(), [&call](const Tool &tool) {
             return tool.definition.name == call.name;
           });
       if (registered == spec_->tools.end()) {
         output = tool_error_json("unknown tool: " + call.name);
-      } else if (!registered->handler) {
+      } else if (!registered->handler && !registered->json_handler) {
         output = tool_error_json("tool has no handler: " + call.name);
       } else {
         try {
-          auto tool_result = registered->handler(call.arguments_json);
-          output = tool_result ? tool_result.value()
-                               : tool_error_json(tool_result.error().message);
+          if (registered->json_handler) {
+            const auto params = JsonObject::parse(call.arguments_json);
+            const auto result = registered->json_handler(params);
+            output = result.success ? result.content
+                                    : tool_error_json(result.content);
+            if (output.empty() && !result.data.is_null())
+              output = result.data.dump();
+          } else {
+            auto tool_result = registered->handler(call.arguments_json);
+            output = tool_result ? tool_result.value()
+                                 : tool_error_json(tool_result.error().message);
+          }
         } catch (const std::exception &exception) {
           output =
               tool_error_json(std::string("tool threw: ") + exception.what());
@@ -129,8 +209,10 @@ Expected<RunResult> Conversation::run(const std::string_view user_message, Event
       }
       // Add the tool's output to the conversation history and emit a
       // ToolCompleted event.
-      history_.push_back(Message{Role::Tool, std::move(output), {}, call.id, call.name});
-      emit(callback, AgentEvent{EventType::ToolCompleted, history_.back().content, call});
+      history_.push_back(
+          Message{Role::Tool, std::move(output), {}, call.id, call.name});
+      emit(callback,
+           AgentEvent{EventType::ToolCompleted, history_.back().content, call});
     }
   }
 

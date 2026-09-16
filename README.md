@@ -51,6 +51,7 @@ Each playground takes a path to a local GGUF model:
 ```sh
 ./build-llama/juno_session_prep_planning_playground /absolute/path/to/model.gguf
 ./build-llama/juno_mix_playground /absolute/path/to/model.gguf
+./build-llama/juno_weather_playground /absolute/path/to/model.gguf
 ```
 
 The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The planning and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Harness uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
@@ -106,6 +107,27 @@ auto conversation = agent.start_conversation();
 auto result = conversation.run("Say hello.", [](const juno::harness::AgentEvent& event) {
   // TextDelta, ToolStarted, ToolCompleted, Completed, or Error.
 });
+```
+
+The same API is also available in a simpler setter-based style:
+
+```cpp
+auto model = juno::harness::LlamaCppModel::create("/path/to/model.gguf");
+if (!model) return 1;
+
+juno::harness::Agent agent(model.value());
+agent.setSystemPrompt("You are a helpful assistant.")
+     .setTemperature(0.7F)
+     .setMaxInferenceTurns(8)
+     .registerTool(juno::harness::createTool(
+         "get_labels", "Return available track labels.",
+         {{"format", "The desired output format", "string", false}},
+         [](const juno::harness::JsonObject&) -> juno::harness::ToolResult {
+           return {true, R"(["drums","bass","vocals"])", {}};
+         }));
+
+auto conversation = agent.createConversation();
+auto result = conversation.run("Say hello.");
 ```
 
 Reasoning effort is configured per agent and remains consistent across its

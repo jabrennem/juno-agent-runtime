@@ -2,9 +2,10 @@
  * @file llama_cpp_model.hpp
  * @brief Defines the LlamaCppModel class for handling LlamaCpp inference.
  *
- * This file contains the declaration of the LlamaCppModel class, which is responsible for
- * managing inference sessions using the LlamaCpp library. It provides methods to create a model
- * instance, generate text based on requests, and handle events during inference.
+ * This file contains the declaration of the LlamaCppModel class, which is
+ * responsible for managing inference sessions using the LlamaCpp library. It
+ * provides methods to create a model instance, generate text based on requests,
+ * and handle events during inference.
  *
  */
 
@@ -24,36 +25,46 @@ struct LlamaCppConfig {
   // Maximum number of tokens to keep in the context window.
   std::size_t context_size{4096};
 
-  // Number of batches to process in parallel. This can improve throughput but may increase latency.
+  // Number of batches to process in parallel. This can improve throughput but
+  // may increase latency.
   std::size_t batch_size{512};
-  
-  // Number of threads to use for inference. If 0, the default number of threads will be used.
+
+  // Number of threads to use for inference. If 0, the default number of threads
+  // will be used.
   unsigned int threads{0};
 
-  // Optional override for the chat template used by the model. If empty, the default template will be used.
+  // Optional override for the chat template used by the model. If empty, the
+  // default template will be used.
   std::string chat_template_override;
 };
 
 /** Model for handling LlamaCpp inference. */
 class LlamaCppModel final : public Model {
- public:
+public:
   /** Creates a new LlamaCppModel instance with the given configuration. */
   static Expected<std::shared_ptr<LlamaCppModel>> create(LlamaCppConfig config);
+
+  /** Convenience factory for the common model-path-only case. */
+  static Expected<std::shared_ptr<LlamaCppModel>>
+  create(const std::string &model_path);
 
   /** Destroys the LlamaCppModel instance. */
   ~LlamaCppModel() override;
 
   /** Deleted copy constructor and assignment operator. */
-  LlamaCppModel(const LlamaCppModel&) = delete;
-  LlamaCppModel& operator=(const LlamaCppModel&) = delete;
+  LlamaCppModel(const LlamaCppModel &) = delete;
+  LlamaCppModel &operator=(const LlamaCppModel &) = delete;
 
-  /** Generates text based on the given request, invoking the callback for events. */
-  Expected<GenerationResponse> generate(const GenerationRequest& request, const EventCallback& callback, std::stop_token stop_token) override;
+  /** Generates text based on the given request, invoking the callback for
+   * events. */
+  Expected<GenerationResponse> generate(const GenerationRequest &request,
+                                        const EventCallback &callback,
+                                        std::stop_token stop_token) override;
 
- private:
+private:
   struct Impl;
   explicit LlamaCppModel(std::unique_ptr<Impl> impl);
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace juno::harness
+} // namespace juno::harness
