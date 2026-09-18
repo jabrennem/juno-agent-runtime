@@ -49,7 +49,15 @@ struct GenerationConfig {
 };
 
 /** Represents the type of an event during inference. */
-enum class EventType { TextDelta, ToolStarted, ToolCompleted, Completed, Error };
+enum class EventType {
+  Prompt,
+  ReasoningDelta,
+  TextDelta,
+  ToolStarted,
+  ToolCompleted,
+  Completed,
+  Error
+};
 
 /** Represents an event during inference. */
 struct AgentEvent {

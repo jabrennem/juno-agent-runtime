@@ -8,6 +8,7 @@ Juno Harness SDK is a C++20 SDK for embedding a small, tool-using agent loop in 
 - CMake 3.20 or newer.
 - A C++20 compiler: Apple Clang on macOS, or Clang/GCC on Linux.
 - Git and network access when CMake is fetching dependencies.
+- libcurl development files when building the weather playground.
 - A GGUF model when using `LlamaCppModel`, including the llama.cpp playgrounds or a real-model smoke test.
 
 On macOS, llama.cpp selects Metal support when it is available. Linux defaults to CPU; configure llama.cpp’s own CMake options in a parent build if you need CUDA, Vulkan, or another accelerator.
@@ -42,7 +43,7 @@ Useful CMake options:
 | `JUNO_HARNESS_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp model. Set to `OFF` for a model-free build. |
 | `JUNO_HARNESS_FETCH_DEPS` | `ON` | Fetch pinned dependencies; set `OFF` to use installed packages. |
 
-`build.sh` accepts any additional CMake cache arguments. Set `JUNO_HARNESS_BUILD_TYPE=Release` for an optimized build, set `JUNO_HARNESS_BUILD_DIR` to choose the build directory, and set `JUNO_HARNESS_SKIP_TESTS=1` when you only want compilation. If CMake is installed outside your `PATH`, set `CMAKE_BIN=/path/to/cmake` (and `CTEST_BIN=/path/to/ctest`).
+`build.sh` defaults to an optimized Release build and accepts any additional CMake cache arguments. Set `JUNO_HARNESS_BUILD_TYPE=Debug` when debugging, set `JUNO_HARNESS_BUILD_DIR` to choose the build directory, and set `JUNO_HARNESS_SKIP_TESTS=1` when you only want compilation. If CMake is installed outside your `PATH`, set `CMAKE_BIN=/path/to/cmake` (and `CTEST_BIN=/path/to/ctest`).
 
 ## Run the playgrounds
 
@@ -99,7 +100,7 @@ Minimal SDK use:
 #include <utility>
 #include "juno_harness/juno_harness.hpp"
 
-auto model_result = juno::harness::LlamaCppModel::create({.model_path = "/path/to/model.gguf"});
+auto model_result = juno::harness::createLlamaCppModel({.model_path = "/path/to/model.gguf"});
 if (!model_result) return 1;
 auto model = model_result.value();
 juno::harness::Agent agent(model, {.system_prompt = "Be concise."});
@@ -112,7 +113,7 @@ auto result = conversation.run("Say hello.", [](const juno::harness::AgentEvent&
 The same API is also available in a simpler setter-based style:
 
 ```cpp
-auto model = juno::harness::LlamaCppModel::create("/path/to/model.gguf");
+auto model = juno::harness::createLlamaCppModel("/path/to/model.gguf");
 if (!model) return 1;
 
 juno::harness::Agent agent(model.value());
@@ -178,15 +179,19 @@ Conversation
 
 `LlamaCppModel` adapts the request into a llama.cpp chat prompt, tokenizes it, generates tokens, streams text events, and parses the completed output.
 
+Set `LlamaCppConfig::prompt_log_path` to append the exact post-template prompt sent to llama.cpp to a local diagnostic file. `LlamaCppConfig::batch_size` controls prompt decoding batch size; prompts larger than one batch are decoded in multiple chunks while remaining within `context_size`.
+
+The model also emits an `EventType::Prompt` event immediately before tokenization. Its `text` field contains that same complete rendered prompt, allowing applications to inspect or print it through the normal event callback.
+
 Juno uses a small JSON tool protocol rather than provider-native tool calling. Tool definitions are included in the prompt, and a model requests a tool by returning JSON in the `tool_calls` shape shown above. Tool results are rendered as ordinary conversation text so chat templates that do not support a native `tool` role can still render the exchange.
 
 ## Runtime model and limitations
 
-- `Agent` holds a reusable model and immutable shared `AgentSpec`; every `Conversation` owns an in-memory transcript.
+- `Agent` holds a reusable model and configurable behavior; every `Conversation` receives an immutable configuration snapshot and owns an in-memory transcript.
 - Conversations are not reentrant or thread-safe. Use one conversation per concurrent chat.
 - Calls and event callbacks run synchronously, in model order.
 - Tool errors—including unknown tools and handler exceptions—are appended as tool-result messages so a model can recover on its next turn.
-- The v1 loop explicitly fails when its context or inference-turn limit is exceeded. It does not yet summarize, truncate, persist, or retrieve memory.
+- The built-in JSON memory store provides basic durable recall; it is intentionally a simple local store with keyword matching, not a semantic or multi-process memory backend.
 - `LlamaCppModel` is in-process and uses RAII to manage the model and per-run inference contexts. Its llama.cpp dependency is isolated from the SDK’s public headers.
 - API-key/cloud models are not implemented yet; implement `Model` to add one without changing `Agent` or `Conversation`.
 

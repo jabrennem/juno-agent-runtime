@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     return 2;
   }
 
-  auto model = LlamaCppModel::create({.model_path = argv[1], .context_size = 4096});
+  auto model = createLlamaCppModel({.model_path = argv[1], .context_size = 4096});
   if (!model)
   {
     std::cerr << "Model setup failed: " << model.error().message << '\n';

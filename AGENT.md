@@ -73,7 +73,7 @@ other higher-level languages. Prefer a small, object-oriented, setter-based
 facade with obvious names and simple arguments:
 
 ```cpp
-auto model = LlamaCppModel::create("/path/to/model.gguf");
+auto model = createLlamaCppModel("/path/to/model.gguf");
 Agent agent(model.value());
 agent.setSystemPrompt("You are a helpful assistant.")
      .setTemperature(0.7F)

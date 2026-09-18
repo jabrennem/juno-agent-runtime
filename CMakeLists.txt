@@ -9,9 +9,11 @@ option(JUNO_HARNESS_BUILD_TESTS "Build Juno Harness SDK unit tests" OFF)
 option(JUNO_HARNESS_BUILD_EXAMPLES "Build Juno Harness SDK playground executables" ON)
 option(JUNO_HARNESS_ENABLE_LLAMA_CPP "Build the in-process llama.cpp model" ON)
 option(JUNO_HARNESS_FETCH_DEPS "Fetch third-party dependencies when needed" ON)
+option(JUNO_HARNESS_BUILD_LLAMA_SERVER "Build llama.cpp's local HTTP server" OFF)
 
 add_library(juno_harness SHARED
     src/agent.cpp
+    src/memory.cpp
     src/llama_cpp_model.cpp)
 add_library(Juno::Harness ALIAS juno_harness)
 set_target_properties(juno_harness PROPERTIES EXPORT_NAME Harness)
@@ -35,7 +37,13 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
         FetchContent_MakeAvailable(nlohmann_json)
     endif()
 endif()
-target_link_libraries(juno_harness PUBLIC nlohmann_json::nlohmann_json)
+get_target_property(JUNO_NLOHMANN_INCLUDE_DIRS
+    nlohmann_json::nlohmann_json INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(juno_harness
+    PUBLIC
+        $<BUILD_INTERFACE:${JUNO_NLOHMANN_INCLUDE_DIRS}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_link_libraries(juno_harness PRIVATE nlohmann_json::nlohmann_json)
 
 if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
     if(NOT TARGET llama)
@@ -51,7 +59,8 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
                 GIT_PROGRESS TRUE)
             set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-            set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_TOOLS ${JUNO_HARNESS_BUILD_LLAMA_SERVER} CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_SERVER ${JUNO_HARNESS_BUILD_LLAMA_SERVER} CACHE BOOL "" FORCE)
             set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
             set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)
             # Juno Harness is shared; embed static llama.cpp/ggml objects so an
@@ -106,6 +115,8 @@ if(JUNO_HARNESS_BUILD_EXAMPLES)
     target_link_libraries(juno_weather_playground PRIVATE
         Juno::Harness
         nlohmann_json::nlohmann_json)
+    find_package(CURL REQUIRED)
+    target_link_libraries(juno_weather_playground PRIVATE CURL::libcurl)
 endif()
 
 if(JUNO_HARNESS_BUILD_TESTS)
@@ -135,6 +146,10 @@ install(TARGETS juno_harness EXPORT JunoHarnessTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(DEFINED nlohmann_json_SOURCE_DIR)
+    install(DIRECTORY "${nlohmann_json_SOURCE_DIR}/single_include/nlohmann"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()
 install(EXPORT JunoHarnessTargets
     FILE JunoHarnessTargets.cmake
     NAMESPACE Juno::

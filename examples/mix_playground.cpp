@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
   }
 
   // Create a LlamaCppModel instance with the specified model path and context size.
-  auto model = LlamaCppModel::create({.model_path = argv[1], .context_size = 4096});
+  auto model = createLlamaCppModel({.model_path = argv[1], .context_size = 4096});
   if (!model) {
     std::cerr << "Model setup failed: " << model.error().message << '\n';
     return 1;
@@ -89,16 +89,16 @@ int main(int argc, char **argv) {
 
     std::cout << "Thinking...\n";
     auto result = conversation.run(input, [](const AgentEvent &event) {
-      if (event.type == EventType::ToolStarted) {
+      if (event.type == EventType::TextDelta) {
+        std::cout << event.text << std::flush;
+      } else if (event.type == EventType::ToolStarted) {
         std::cout << "tool: " << event.tool_call.name << "(" << event.tool_call.arguments_json << ")\n";
       } else if (event.type == EventType::ToolCompleted) {
         std::cout << "tool completed: " << event.tool_call.name << "\n";
-      } else if (event.type == EventType::TextDelta) {
-        std::cout << event.text << std::flush;
-      } else if (event.type == EventType::Error) {
-        std::cerr << "error: " << event.text << "\n";
       } else if (event.type == EventType::Completed) {
         std::cout << "assistant: " << event.text << "\n";
+      } else if (event.type == EventType::Error) {
+        std::cerr << "error: " << event.text << "\n";
       }
     });
     if (!result)

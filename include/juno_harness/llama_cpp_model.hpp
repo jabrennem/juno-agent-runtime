@@ -33,6 +33,9 @@ struct LlamaCppConfig {
   // will be used.
   unsigned int threads{0};
 
+  // If set, append the exact rendered prompt sent to llama.cpp to this file.
+  std::string prompt_log_path;
+
   // Optional override for the chat template used by the model. If empty, the
   // default template will be used.
   std::string chat_template_override;
@@ -45,8 +48,7 @@ public:
   static Expected<std::shared_ptr<LlamaCppModel>> create(LlamaCppConfig config);
 
   /** Convenience factory for the common model-path-only case. */
-  static Expected<std::shared_ptr<LlamaCppModel>>
-  create(const std::string &model_path);
+  static Expected<std::shared_ptr<LlamaCppModel>> create(const std::string &model_path);
 
   /** Destroys the LlamaCppModel instance. */
   ~LlamaCppModel() override;
@@ -66,5 +68,11 @@ private:
   explicit LlamaCppModel(std::unique_ptr<Impl> impl);
   std::unique_ptr<Impl> impl_;
 };
+
+/** Creates a new LlamaCppModel instance with the given configuration. */
+Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(LlamaCppConfig config);
+
+/** Convenience factory for the common model-path-only case. */
+Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(const std::string &model_path);
 
 } // namespace juno::harness

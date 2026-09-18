@@ -1,0 +1,18 @@
+BasedOnStyle: LLVM
+
+ColumnLimit: 100
+IndentWidth: 2
+ContinuationIndentWidth: 4
+
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: BlockIndent
+
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: false
+
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+BreakBeforeBinaryOperators: NonAssignment

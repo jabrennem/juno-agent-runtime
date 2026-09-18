@@ -11,3 +11,4 @@
 
 #include "juno_harness/agent.hpp"
 #include "juno_harness/llama_cpp_model.hpp"
+#include "juno_harness/memory.hpp"
