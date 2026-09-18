@@ -167,7 +167,8 @@ MemoryManager::MemoryManager(MemoryManagerOptions options) : options_(std::move(
   if (options_.addTool.name.empty())
     options_.addTool.name = "add_memory";
   if (options_.addTool.description.empty())
-    options_.addTool.description = "Save an important fact for future conversations.";
+    options_.addTool.description =
+        "Save a durable user fact, preference, or recurring context for future conversations.";
 }
 
 MemoryManager &MemoryManager::addStore(std::shared_ptr<MemoryStore> store) {

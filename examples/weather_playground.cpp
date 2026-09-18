@@ -11,6 +11,12 @@ namespace {
 
 using namespace juno::harness;
 
+constexpr std::string_view kCyan = "\033[36m";
+constexpr std::string_view kYellow = "\033[33m";
+constexpr std::string_view kBlue = "\033[34m";
+constexpr std::string_view kMagenta = "\033[35m";
+constexpr std::string_view kReset = "\033[0m";
+
 // Define structures to hold location and weather forecast data
 
 struct Location {
@@ -195,7 +201,7 @@ int main(int argc, char **argv) {
     },
     .addTool = {
       .enabled = true,
-      .description = "Remember an important user fact or preference."
+      .description = "Save durable weather preferences or recurring locations for later conversations."
     }
   });
 
@@ -277,27 +283,17 @@ int main(int argc, char **argv) {
 
     std::cout << "assistant:\n";
     std::string forecast_fallback;
-    bool thinking = false;
     auto result = conversation.run(input, [&](const AgentEvent &event) {
       if (event.type == EventType::Prompt) {
-        // std::cout << event.text << std::flush;
+        std::cout << kMagenta << event.text << kReset << std::flush;
       } else if (event.type == EventType::ReasoningDelta) {
-        if (!thinking) {
-          std::cout << "[start thinking]\n";
-          thinking = true;
-        }
-        std::cout << event.text << std::flush;
+        std::cout << kCyan << event.text << kReset << std::flush;
       } else if (event.type == EventType::TextDelta) {
-        if (thinking) {
-          std::cout << "[stopped thinking]\n";
-          thinking = false;
-        }
-        std::cout << event.text << std::flush;
+        std::cout << kBlue << event.text << kReset << std::flush;
       } else if (event.type == EventType::ToolStarted) {
-        std::cout << "tool: " << event.tool_call.name << "(" << event.tool_call.arguments_json << ")\n";
+        std::cout << kYellow << "tool: " << event.tool_call.name << "(" << event.tool_call.arguments_json << ")" << kReset << '\n';
       } else if (event.type == EventType::ToolCompleted) {
-        std::cout << "tool completed: " << event.tool_call.name << "\n";
-      } else if (event.type == EventType::Completed) {
+        std::cout << kYellow << "tool completed: " << event.tool_call.name << kReset << '\n';
       }
     });
     if (!result)

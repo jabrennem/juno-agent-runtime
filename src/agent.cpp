@@ -130,7 +130,7 @@ Agent &Agent::setMemory(std::shared_ptr<MemoryManager> memory) {
       registerTool(createTool(
           {.name = config.name,
            .description = config.description,
-           .parameters = {{"query", "What you want to remember", "string", true}},
+           .parameters = {{"query", "The durable fact or preference to look up", "string", true}},
            .handler = [memory = memory_](const JsonObject &params) -> ToolResult {
              if (!params.contains("query") || !params["query"].is_string())
                return {false, "search_memory requires a string query"};
@@ -156,7 +156,7 @@ Agent &Agent::setMemory(std::shared_ptr<MemoryManager> memory) {
       registerTool(createTool(
           {.name = config.name,
            .description = config.description,
-           .parameters = {{"content", "The fact or preference to remember", "string", true},
+           .parameters = {{"content", "The durable fact or preference to remember", "string", true},
                           {"store", memory_store_parameter_description(*memory_), "string", false},
                           {"metadata", "Optional structured metadata", "object", false}},
            .handler = [memory = memory_](const JsonObject &params) -> ToolResult {

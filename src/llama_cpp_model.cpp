@@ -70,24 +70,43 @@ const char *reasoning_effort_name(const ReasoningEffort effort) {
   return "none";
 }
 
-/** Returns the JSON string describing the available tools. */
+/** Returns the model-facing tool and memory instructions. */
 std::string tool_protocol(const std::span<const ToolDefinition> tools) {
   if (tools.empty())
     return {};
   nlohmann::json definitions = nlohmann::json::array();
+  bool has_memory_tool = false;
   for (const ToolDefinition &tool : tools) {
     nlohmann::json parameters = nlohmann::json::object();
     try {
       parameters = nlohmann::json::parse(tool.parameters_json);
     } catch (...) {
     }
+    has_memory_tool = has_memory_tool || tool.name.find("memory") != std::string::npos ||
+                      tool.description.find("memory") != std::string::npos;
     definitions.push_back(
         {{"name", tool.name}, {"description", tool.description}, {"parameters", parameters}});
   }
-  return "\n\nAvailable tools (JSON): " + definitions.dump() +
-         "\nWhen a tool is needed, respond with only JSON in this shape: "
-         "{\"tool_calls\":[{\"id\":\"unique-id\",\"name\":\"tool-name\","
-         "\"arguments\":{}}]}.\n";
+
+  std::string protocol =
+      "\n\n<tools>\nAvailable tools (JSON): " + definitions.dump() + "\n</tools>\n";
+  if (has_memory_tool) {
+    protocol += R"(<memory_policy>
+Use durable memory selectively. Save information only when the user explicitly asks you to
+remember it, or when it is a stable preference, personal fact, or recurring context likely to
+improve a future conversation. Do not save one-off requests, temporary forecasts, current
+conditions, or facts that are only useful for the current task. When in doubt, do not save.
+</memory_policy>
+)";
+  }
+  protocol += R"(<response_protocol>
+When a tool is needed, respond with only JSON in this shape:
+{"tool_calls":[{"id":"unique-id","name":"tool-name","arguments":{}}]}
+After a tool result, either call another tool if necessary or answer the user directly.
+Do not emit empty or visible <think> blocks.
+</response_protocol>
+)";
+  return protocol;
 }
 
 /** Parses the model's output text to extract tool calls and content. */
