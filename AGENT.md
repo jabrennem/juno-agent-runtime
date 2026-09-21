@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Juno Harness is a C++20 SDK for embedding a small tool-using agent loop in
+Juno Agent Runtime is a C++20 SDK for embedding a small tool-using agent loop in
 native applications. The public API lives under `include/juno_harness`, the
 runtime implementation lives in `src`, and llama.cpp is an optional private
 implementation dependency. Keep the SDK usable without exposing llama.cpp in
@@ -20,19 +20,19 @@ Use the repository helper for normal validation:
 For a faster model-free test build, use:
 
 ```sh
-JUNO_HARNESS_BUILD_DIR=build-test ./build.sh \
-  -DJUNO_HARNESS_ENABLE_LLAMA_CPP=OFF
+JUNO_AGENT_BUILD_DIR=build-test ./build.sh \
+  -DJUNO_AGENT_ENABLE_LLAMA_CPP=OFF
 ```
 
 Useful environment variables are:
 
-- `JUNO_HARNESS_BUILD_DIR` to select a build directory.
-- `JUNO_HARNESS_BUILD_TYPE` to select the CMake build type.
-- `JUNO_HARNESS_SKIP_TESTS=1` to compile without running CTest.
+- `JUNO_AGENT_BUILD_DIR` to select a build directory.
+- `JUNO_AGENT_BUILD_TYPE` to select the CMake build type.
+- `JUNO_AGENT_SKIP_TESTS=1` to compile without running CTest.
 - `CMAKE_BIN` and `CTEST_BIN` when those tools are not on `PATH`.
 
 When changing installation, exported targets, or public headers, also verify a
-consumer can use the installed package through `find_package(JunoHarness)`.
+consumer can use the installed package through `find_package(JunoAgentRuntime)`.
 
 ## Code organization
 

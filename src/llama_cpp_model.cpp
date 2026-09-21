@@ -16,7 +16,7 @@
 #include <string_view>
 #include <utility>
 
-#if JUNO_HARNESS_HAS_LLAMA_CPP
+#if JUNO_AGENT_HAS_LLAMA_CPP
 #include <algorithm>
 #include <chat.h>
 #include <filesystem>

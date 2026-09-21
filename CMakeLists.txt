@@ -1,32 +1,50 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(JunoHarness VERSION 0.1.0 LANGUAGES CXX)
+project(JunoAgentRuntime VERSION 0.1.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-option(JUNO_HARNESS_BUILD_TESTS "Build Juno Harness SDK unit tests" OFF)
-option(JUNO_HARNESS_BUILD_EXAMPLES "Build Juno Harness SDK playground executables" ON)
-option(JUNO_HARNESS_ENABLE_LLAMA_CPP "Build the in-process llama.cpp model" ON)
-option(JUNO_HARNESS_FETCH_DEPS "Fetch third-party dependencies when needed" ON)
-option(JUNO_HARNESS_BUILD_LLAMA_SERVER "Build llama.cpp's local HTTP server" OFF)
+# Backward-compatible cache options for existing build scripts.
+if(DEFINED JUNO_HARNESS_BUILD_TESTS AND NOT DEFINED JUNO_AGENT_BUILD_TESTS)
+    set(JUNO_AGENT_BUILD_TESTS "${JUNO_HARNESS_BUILD_TESTS}" CACHE BOOL "" FORCE)
+endif()
+if(DEFINED JUNO_HARNESS_BUILD_EXAMPLES AND NOT DEFINED JUNO_AGENT_BUILD_EXAMPLES)
+    set(JUNO_AGENT_BUILD_EXAMPLES "${JUNO_HARNESS_BUILD_EXAMPLES}" CACHE BOOL "" FORCE)
+endif()
+if(DEFINED JUNO_HARNESS_ENABLE_LLAMA_CPP AND NOT DEFINED JUNO_AGENT_ENABLE_LLAMA_CPP)
+    set(JUNO_AGENT_ENABLE_LLAMA_CPP "${JUNO_HARNESS_ENABLE_LLAMA_CPP}" CACHE BOOL "" FORCE)
+endif()
+if(DEFINED JUNO_HARNESS_FETCH_DEPS AND NOT DEFINED JUNO_AGENT_FETCH_DEPS)
+    set(JUNO_AGENT_FETCH_DEPS "${JUNO_HARNESS_FETCH_DEPS}" CACHE BOOL "" FORCE)
+endif()
+if(DEFINED JUNO_HARNESS_BUILD_LLAMA_SERVER AND NOT DEFINED JUNO_AGENT_BUILD_LLAMA_SERVER)
+    set(JUNO_AGENT_BUILD_LLAMA_SERVER "${JUNO_HARNESS_BUILD_LLAMA_SERVER}" CACHE BOOL "" FORCE)
+endif()
 
-add_library(juno_harness SHARED
+option(JUNO_AGENT_BUILD_TESTS "Build Juno Agent Runtime SDK unit tests" OFF)
+option(JUNO_AGENT_BUILD_EXAMPLES "Build Juno Agent Runtime SDK playground executables" ON)
+option(JUNO_AGENT_ENABLE_LLAMA_CPP "Build the in-process llama.cpp model" ON)
+option(JUNO_AGENT_FETCH_DEPS "Fetch third-party dependencies when needed" ON)
+option(JUNO_AGENT_BUILD_LLAMA_SERVER "Build llama.cpp's local HTTP server" OFF)
+
+add_library(juno_agent_runtime SHARED
     src/agent.cpp
     src/memory.cpp
     src/llama_cpp_model.cpp)
-add_library(Juno::Harness ALIAS juno_harness)
-set_target_properties(juno_harness PROPERTIES EXPORT_NAME Harness)
+add_library(Juno::Agent ALIAS juno_agent_runtime)
+add_library(Juno::Harness ALIAS juno_agent_runtime)
+set_target_properties(juno_agent_runtime PROPERTIES EXPORT_NAME Agent)
 
-target_compile_features(juno_harness PUBLIC cxx_std_20)
-target_include_directories(juno_harness
+target_compile_features(juno_agent_runtime PUBLIC cxx_std_20)
+target_include_directories(juno_agent_runtime
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_definitions(juno_harness PRIVATE JUNO_HARNESS_HAS_LLAMA_CPP=$<BOOL:${JUNO_HARNESS_ENABLE_LLAMA_CPP}>)
+target_compile_definitions(juno_agent_runtime PRIVATE JUNO_AGENT_HAS_LLAMA_CPP=$<BOOL:${JUNO_AGENT_ENABLE_LLAMA_CPP}>)
 
 if(NOT TARGET nlohmann_json::nlohmann_json)
-    if(NOT JUNO_HARNESS_FETCH_DEPS)
+    if(NOT JUNO_AGENT_FETCH_DEPS)
         find_package(nlohmann_json CONFIG REQUIRED)
     else()
         include(FetchContent)
@@ -39,15 +57,15 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
 endif()
 get_target_property(JUNO_NLOHMANN_INCLUDE_DIRS
     nlohmann_json::nlohmann_json INTERFACE_INCLUDE_DIRECTORIES)
-target_include_directories(juno_harness
+target_include_directories(juno_agent_runtime
     PUBLIC
         $<BUILD_INTERFACE:${JUNO_NLOHMANN_INCLUDE_DIRS}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(juno_harness PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(juno_agent_runtime PRIVATE nlohmann_json::nlohmann_json)
 
-if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
+if(JUNO_AGENT_ENABLE_LLAMA_CPP)
     if(NOT TARGET llama)
-        if(NOT JUNO_HARNESS_FETCH_DEPS)
+        if(NOT JUNO_AGENT_FETCH_DEPS)
             find_package(Llama CONFIG REQUIRED)
         else()
             include(FetchContent)
@@ -59,70 +77,71 @@ if(JUNO_HARNESS_ENABLE_LLAMA_CPP)
                 GIT_PROGRESS TRUE)
             set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
             set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-            set(LLAMA_BUILD_TOOLS ${JUNO_HARNESS_BUILD_LLAMA_SERVER} CACHE BOOL "" FORCE)
-            set(LLAMA_BUILD_SERVER ${JUNO_HARNESS_BUILD_LLAMA_SERVER} CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_TOOLS ${JUNO_AGENT_BUILD_LLAMA_SERVER} CACHE BOOL "" FORCE)
+            set(LLAMA_BUILD_SERVER ${JUNO_AGENT_BUILD_LLAMA_SERVER} CACHE BOOL "" FORCE)
             set(LLAMA_BUILD_COMMON ON CACHE BOOL "" FORCE)
             set(LLAMA_SUBPROCESS OFF CACHE BOOL "" FORCE)
-            # Juno Harness is shared; embed static llama.cpp/ggml objects so an
+            # Juno Agent Runtime is shared; embed static llama.cpp/ggml objects so an
             # installed SDK library does not point at its build tree.
-            set(JUNO_HARNESS_PREVIOUS_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
+            set(JUNO_AGENT_PREVIOUS_BUILD_SHARED_LIBS "${BUILD_SHARED_LIBS}")
             set(BUILD_SHARED_LIBS OFF)
             FetchContent_MakeAvailable(llama_cpp)
-            set(BUILD_SHARED_LIBS "${JUNO_HARNESS_PREVIOUS_BUILD_SHARED_LIBS}")
+            set(BUILD_SHARED_LIBS "${JUNO_AGENT_PREVIOUS_BUILD_SHARED_LIBS}")
         endif()
     endif()
 
     if(NOT TARGET llama-common)
         message(FATAL_ERROR
-            "Juno Harness requires llama.cpp's llama-common target for Jinja chat-template options")
+            "Juno Agent Runtime requires llama.cpp's llama-common target for Jinja chat-template options")
     endif()
 
     # Model dependencies stay private: the shared SDK library owns its
     # implementation linkage and keeps llama.cpp out of public headers.
     # Link through a build-tree file path so this private implementation detail
-    # is not emitted as a required target in JunoHarnessTargets.cmake.
-    add_dependencies(juno_harness llama llama-common llama-common-base)
-    target_link_libraries(juno_harness PRIVATE
+    # is not emitted as a required target in JunoAgentRuntimeTargets.cmake.
+    add_dependencies(juno_agent_runtime llama llama-common llama-common-base)
+    target_link_libraries(juno_agent_runtime PRIVATE
         "$<TARGET_FILE:llama-common>"
         "$<TARGET_FILE:llama-common-base>"
         "$<TARGET_FILE:llama>"
         "$<TARGET_GENEX_EVAL:llama,$<TARGET_PROPERTY:llama,INTERFACE_LINK_LIBRARIES>>")
-    target_include_directories(juno_harness PRIVATE
+    target_include_directories(juno_agent_runtime PRIVATE
         "$<TARGET_PROPERTY:llama-common,INTERFACE_INCLUDE_DIRECTORIES>"
         "$<TARGET_PROPERTY:llama,INTERFACE_INCLUDE_DIRECTORIES>"
         "$<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>")
 endif()
 
-if(JUNO_HARNESS_BUILD_TESTS)
+if(JUNO_AGENT_BUILD_TESTS)
     add_library(juno_harness_test_support STATIC
         test_support/fake_model.cpp)
+    add_library(Juno::AgentTestSupport ALIAS juno_harness_test_support)
     add_library(Juno::HarnessTestSupport ALIAS juno_harness_test_support)
-    target_link_libraries(juno_harness_test_support PUBLIC Juno::Harness)
+    target_link_libraries(juno_harness_test_support PUBLIC Juno::Agent)
     target_include_directories(juno_harness_test_support
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test_support>)
 endif()
 
-if(JUNO_HARNESS_BUILD_EXAMPLES)
+if(JUNO_AGENT_BUILD_EXAMPLES)
     add_executable(juno_session_prep_planning_playground
         examples/session_prep_planning_playground.cpp)
     add_executable(juno_mix_playground
         examples/mix_playground.cpp)
     add_executable(juno_weather_playground
         examples/weather_playground.cpp)
-    target_link_libraries(juno_session_prep_planning_playground PRIVATE Juno::Harness)
-    target_link_libraries(juno_mix_playground PRIVATE Juno::Harness)
+    target_link_libraries(juno_session_prep_planning_playground PRIVATE Juno::Agent)
+    target_link_libraries(juno_mix_playground PRIVATE Juno::Agent)
     target_link_libraries(juno_weather_playground PRIVATE
-        Juno::Harness
+        Juno::Agent
         nlohmann_json::nlohmann_json)
     find_package(CURL REQUIRED)
     target_link_libraries(juno_weather_playground PRIVATE CURL::libcurl)
 endif()
 
-if(JUNO_HARNESS_BUILD_TESTS)
+if(JUNO_AGENT_BUILD_TESTS)
     include(CTest)
     if(NOT TARGET Catch2::Catch2WithMain)
-        if(NOT JUNO_HARNESS_FETCH_DEPS)
+        if(NOT JUNO_AGENT_FETCH_DEPS)
             find_package(Catch2 3 CONFIG REQUIRED)
         else()
             include(FetchContent)
@@ -135,13 +154,13 @@ if(JUNO_HARNESS_BUILD_TESTS)
     endif()
     add_executable(juno_harness_tests tests/agent_tests.cpp)
     target_link_libraries(juno_harness_tests PRIVATE
-        Juno::Harness
+        Juno::Agent
         juno_harness_test_support
         Catch2::Catch2WithMain)
     add_test(NAME juno_harness_tests COMMAND juno_harness_tests)
 endif()
 
-install(TARGETS juno_harness EXPORT JunoHarnessTargets
+install(TARGETS juno_agent_runtime EXPORT JunoAgentRuntimeTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -150,20 +169,20 @@ if(DEFINED nlohmann_json_SOURCE_DIR)
     install(DIRECTORY "${nlohmann_json_SOURCE_DIR}/single_include/nlohmann"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
-install(EXPORT JunoHarnessTargets
-    FILE JunoHarnessTargets.cmake
+install(EXPORT JunoAgentRuntimeTargets
+    FILE JunoAgentRuntimeTargets.cmake
     NAMESPACE Juno::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoHarness)
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoAgentRuntime)
 
 configure_package_config_file(
-    cmake/JunoHarnessConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoHarness)
+    cmake/JunoAgentRuntimeConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoAgentRuntimeConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoAgentRuntime)
 write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfigVersion.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoAgentRuntimeConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
 install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfig.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/JunoHarnessConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoHarness)
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoAgentRuntimeConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/JunoAgentRuntimeConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/JunoAgentRuntime)

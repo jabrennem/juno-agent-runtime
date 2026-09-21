@@ -1,7 +1,7 @@
-# juno-harness-cpp
-A native modern C++ agent harness for real-time creative and production workflows. Initially powered by llama.cpp.
+# juno-agent-runtime
+A native modern C++ agent runtime for real-time creative and production workflows. Initially powered by llama.cpp.
 
-Juno Harness SDK is a C++20 SDK for embedding a small, tool-using agent loop in native applications. It separates agent orchestration, tool execution, in-memory conversation state, and inference models. The deterministic fake model is available as build-only test support; llama.cpp is enabled by default for local GGUF inference.
+Juno Agent Runtime is a C++20 SDK for embedding a small, tool-using agent loop in native applications. It separates agent orchestration, tool execution, in-memory conversation state, and inference models. The deterministic fake model is available as build-only test support; llama.cpp is enabled by default for local GGUF inference.
 
 ## Prerequisites
 
@@ -24,26 +24,26 @@ The simplest path is the repository build helper. It configures CMake, builds th
 The build does not need a model, but it does fetch and compile llama.cpp by default:
 
 ```sh
-cmake -S . -B build -DJUNO_HARNESS_BUILD_EXAMPLES=ON
+cmake -S . -B build -DJUNO_AGENT_BUILD_EXAMPLES=ON
 cmake --build build
 ```
 
 The llama.cpp model can also be enabled explicitly:
 
 ```sh
-JUNO_HARNESS_BUILD_DIR=build-llama ./build.sh -DJUNO_HARNESS_ENABLE_LLAMA_CPP=ON
+JUNO_AGENT_BUILD_DIR=build-llama ./build.sh -DJUNO_AGENT_ENABLE_LLAMA_CPP=ON
 ```
 
 Useful CMake options:
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `JUNO_HARNESS_BUILD_TESTS` | `OFF` | Build the Catch2 unit test executable and register it with CTest. |
-| `JUNO_HARNESS_BUILD_EXAMPLES` | `ON` | Build the music-workflow playgrounds. |
-| `JUNO_HARNESS_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp model. Set to `OFF` for a model-free build. |
-| `JUNO_HARNESS_FETCH_DEPS` | `ON` | Fetch pinned dependencies; set `OFF` to use installed packages. |
+| `JUNO_AGENT_BUILD_TESTS` | `OFF` | Build the Catch2 unit test executable and register it with CTest. |
+| `JUNO_AGENT_BUILD_EXAMPLES` | `ON` | Build the music-workflow playgrounds. |
+| `JUNO_AGENT_ENABLE_LLAMA_CPP` | `ON` | Fetch and compile the in-process llama.cpp model. Set to `OFF` for a model-free build. |
+| `JUNO_AGENT_FETCH_DEPS` | `ON` | Fetch pinned dependencies; set `OFF` to use installed packages. |
 
-`build.sh` defaults to an optimized Release build and accepts any additional CMake cache arguments. Set `JUNO_HARNESS_BUILD_TYPE=Debug` when debugging, set `JUNO_HARNESS_BUILD_DIR` to choose the build directory, and set `JUNO_HARNESS_SKIP_TESTS=1` when you only want compilation. If CMake is installed outside your `PATH`, set `CMAKE_BIN=/path/to/cmake` (and `CTEST_BIN=/path/to/ctest`).
+`build.sh` defaults to an optimized Release build and accepts any additional CMake cache arguments. Set `JUNO_AGENT_BUILD_TYPE=Debug` when debugging, set `JUNO_AGENT_BUILD_DIR` to choose the build directory, and set `JUNO_AGENT_SKIP_TESTS=1` when you only want compilation. If CMake is installed outside your `PATH`, set `CMAKE_BIN=/path/to/cmake` (and `CTEST_BIN=/path/to/ctest`).
 
 ## Run the playgrounds
 
@@ -55,12 +55,12 @@ Each playground takes a path to a local GGUF model:
 ./build-llama/juno_weather_playground /absolute/path/to/model.gguf
 ```
 
-The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The planning and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Harness uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
+The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The planning and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Agent Runtime uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
 
 ## Unit tests
 
 ```sh
-cmake -S . -B build-test -DJUNO_HARNESS_BUILD_TESTS=ON
+cmake -S . -B build-test -DJUNO_AGENT_BUILD_TESTS=ON
 cmake --build build-test
 ctest --test-dir build-test --output-on-failure
 ```
@@ -69,7 +69,7 @@ The automated tests link the build-only `juno_harness_test_support` target, whic
 
 ## Use from another CMake application
 
-Install Juno Harness SDK first:
+Install Juno Agent Runtime SDK first:
 
 ```sh
 cmake --install build --prefix /desired/prefix
@@ -78,18 +78,18 @@ cmake --install build --prefix /desired/prefix
 Then consume its exported target:
 
 ```cmake
-find_package(JunoHarness CONFIG REQUIRED)
+find_package(JunoAgentRuntime CONFIG REQUIRED)
 add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE Juno::Harness)
+target_link_libraries(my_app PRIVATE Juno::Agent)
 ```
 
 For a parent-project build, add the checkout through `FetchContent` instead:
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(juno_harness SOURCE_DIR /absolute/path/to/juno-harness-cpp)
-FetchContent_MakeAvailable(juno_harness)
-target_link_libraries(my_app PRIVATE Juno::Harness)
+FetchContent_Declare(juno_agent_runtime SOURCE_DIR /absolute/path/to/juno-agent-runtime)
+FetchContent_MakeAvailable(juno_agent_runtime)
+target_link_libraries(my_app PRIVATE Juno::Agent)
 ```
 
 Minimal SDK use:
