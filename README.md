@@ -1,7 +1,13 @@
 # juno-agent-runtime
-A native modern C++ agent runtime for real-time creative and production workflows. Initially powered by llama.cpp.
+A native modern C++ agent runtime for agents. Initially powered by llama.cpp.
 
-Juno Agent Runtime is a C++20 SDK for embedding a small, tool-using agent loop in native applications. It separates agent orchestration, tool execution, in-memory conversation state, and inference models. The deterministic fake model is available as build-only test support; llama.cpp is enabled by default for local GGUF inference.
+Juno Agent Runtime is a C++20 SDK for embedding a small, tool-using agent loop in native applications in the Juno production agents ecosystem. 
+
+It supports
+- intuitive modern API design
+- llama.cpp embedded integration for local gguf files
+- tool integration
+- auto-memory
 
 ## Prerequisites
 
