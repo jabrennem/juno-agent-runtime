@@ -184,26 +184,26 @@ int main(int argc, char **argv) {
   }
 
   // Create a memory manager for the user's recent weather requests.
-  auto recent_forecasts_store = createMemoryStore({
-    .name = "weather",
-    .path = "~/.juno/memory/recent_forecasts.json",
-    .description = "Recent cities and weather requests.",
-  });
-  auto weather_memory = createMemoryManager({
-    .stores = {recent_forecasts_store},
-    .policy = {
-      .auto_recall_enabled = false,
-      .max_recalled_memories = 5
-    },
-    .searchTool = {
-      .enabled = true,
-      .description = "Look up recent forecasts for locations when useful."
-    },
-    .addTool = {
-      .enabled = true,
-      .description = "Save durable weather preferences or recurring locations for later conversations."
-    }
-  });
+  // auto recent_forecasts_store = createMemoryStore({
+  //   .name = "weather",
+  //   .path = "~/.juno/memory/recent_forecasts.json",
+  //   .description = "Recent cities and weather requests.",
+  // });
+  // auto weather_memory = createMemoryManager({
+  //   .stores = {recent_forecasts_store},
+  //   .policy = {
+  //     .auto_recall_enabled = false,
+  //     .max_recalled_memories = 5
+  //   },
+  //   .searchTool = {
+  //     .enabled = true,
+  //     .description = "Look up recent forecasts for locations when useful."
+  //   },
+  //   .addTool = {
+  //     .enabled = true,
+  //     .description = "Save durable weather preferences or recurring locations for later conversations."
+  //   }
+  // });
 
   // Create a tool for fetching the weather forecast
   auto weather_forecast_tool = createTool({
@@ -253,7 +253,6 @@ int main(int argc, char **argv) {
           "available tools and durable memory when useful."
       )
       .setMaxInferenceTurns(6)
-      .setMemory(weather_memory)
       .setReasoningEffort(ReasoningEffort::Medium)
       .registerTool(weather_forecast_tool);
   auto conversation = weather_agent.createConversation();

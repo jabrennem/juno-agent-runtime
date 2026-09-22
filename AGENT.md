@@ -68,24 +68,44 @@ consumer can use the installed package through `find_package(JunoAgentRuntime)`.
 
 ## Public API design
 
-The primary API should be approachable to developers coming from Python or
-other higher-level languages. Prefer a small, object-oriented, setter-based
-facade with obvious names and simple arguments:
+The primary SDK API should use validated, options-based factory methods rather
+than positional constructors or setter chains. Configuration belongs in named
+aggregate `*Options` structs, and each class is responsible for validating its
+own options before returning an object.
+
+Use `PascalCase` for types and `snake_case` for methods, functions, and data
+members. Follow the C++ standard-library naming convention consistently across
+the public API.
+
+The preferred shape is:
 
 ```cpp
-auto model = createLlamaCppModel("/path/to/model.gguf");
-Agent agent(model.value());
-agent.setSystemPrompt("You are a helpful assistant.")
-     .setTemperature(0.7F)
-     .registerTool(createTool(
-         "get_labels", "Return available track labels.",
-         {{"format", "The desired output format", "string", false}},
-         [](const JsonObject&) -> ToolResult {
-           return {true, "[\\"drums\\",\\"bass\\",\\"vocals\\"]", {}};
-         }));
-auto conversation = agent.createConversation();
+auto model_result = LlamaCppModel::create({
+    .model_path = "/path/to/model.gguf",
+});
+
+auto agent_result = Agent::create({
+    .model = model_result.value(),
+    .system_prompt = "You are a helpful assistant.",
+});
+
+auto agent = std::move(agent_result.value());
+auto tool_result = Tool::create({
+    .name = "get_labels",
+    .description = "Return available track labels.",
+    .handler = [](const JsonObject&) -> ToolResult {
+      return {true, "[\\"drums\\",\\"bass\\",\\"vocals\\"]", {}};
+    },
+});
+agent.add_tool(std::move(tool_result.value()));
+auto conversation = agent.start_conversation();
 auto result = conversation.run("Say hello.");
 ```
+
+Factories should return `Expected<T>` when construction or validation can
+fail. Mutating operations such as `add_tool` should return `Expected<void>`
+when they can reject invalid state. Avoid positional arguments for public
+configuration and avoid setter chains as the primary construction path.
 
 Keep the conceptual model explicit:
 
@@ -94,13 +114,13 @@ Keep the conceptual model explicit:
 - `Conversation` owns one independent transcript and run state.
 - `Tool` combines a name, description, parameter list, and callback.
 
-The typed core (`AgentSpec`, `GenerationRequest`, `ToolDefinition`,
+The typed core (`AgentOptions`, `GenerationRequest`, `ToolDefinition`,
 `Expected<T>`, and related types) remains available for advanced users and
 internal correctness, but should not make the normal path feel ceremonial.
-When adding capabilities, expose the simple facade first and retain the typed
-escape hatch. Preserve compatibility aliases such as
-`start_conversation()` when introducing friendlier names such as
-`createConversation()`.
+When adding capabilities, expose the options-based facade first and retain the
+typed escape hatch. `Agent` should remain reusable: conversations receive an
+immutable configuration snapshot, so tools added after a conversation starts
+affect only subsequently created conversations.
 
 ## Tests
 
