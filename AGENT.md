@@ -3,7 +3,7 @@
 ## Project overview
 
 Juno Agent Runtime is a C++20 SDK for embedding a small tool-using agent loop in
-native applications. The public API lives under `include/juno_harness`, the
+native applications. The public API lives under `include/juno_sdk`, the
 runtime implementation lives in `src`, and llama.cpp is an optional private
 implementation dependency. Keep the SDK usable without exposing llama.cpp in
 public headers. The JSON type used by the readable tool API is an intentional
@@ -36,7 +36,7 @@ consumer can use the installed package through `find_package(JunoAgentRuntime)`.
 
 ## Code organization
 
-- `include/juno_harness`: public SDK headers. Avoid leaking private model or
+- `include/juno_sdk`: public SDK headers. Avoid leaking private model or
   third-party implementation details here; intentionally public dependencies
   must be documented and exported correctly.
 - `src/agent.cpp`: conversation state, the inference loop, tool dispatch, and
@@ -50,7 +50,7 @@ consumer can use the installed package through `find_package(JunoAgentRuntime)`.
 
 ## Implementation conventions
 
-- Preserve C++20 compatibility and the `juno::harness` namespace.
+- Preserve C++20 compatibility and the `juno::sdk` namespace.
 - Use RAII and value semantics. Prefer standard-library types in public APIs.
 - Report expected failures with `Expected<T>` and `Error`; reserve exceptions
   for truly exceptional boundaries. Tool-handler exceptions must remain
@@ -60,7 +60,7 @@ consumer can use the installed package through `find_package(JunoAgentRuntime)`.
   thread-safe or reentrant.
 - Preserve synchronous callback ordering and emit observable terminal errors.
 - Tool arguments and results are JSON text. Handlers own argument validation;
-  the harness should not silently rewrite their payloads.
+  the SDK should not silently rewrite their payloads.
 - Keep dependency linkage private unless a type is intentionally part of the
   installed API.
 - Match the formatting and naming already used in neighboring code. Avoid

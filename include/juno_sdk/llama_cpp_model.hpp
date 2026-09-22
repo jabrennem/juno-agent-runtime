@@ -14,7 +14,7 @@
 #include <memory>
 #include <string>
 
-#include "juno_harness/model.hpp"
+#include "juno_sdk/model.hpp"
 
 namespace juno::sdk {
 

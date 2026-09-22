@@ -1,4 +1,4 @@
-#include "juno_harness/fake_model.hpp"
+#include "juno_sdk/fake_model.hpp"
 
 #include <utility>
 

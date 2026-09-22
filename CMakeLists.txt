@@ -5,23 +5,6 @@ project(JunoAgentRuntime VERSION 0.1.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-# Backward-compatible cache options for existing build scripts.
-if(DEFINED JUNO_HARNESS_BUILD_TESTS AND NOT DEFINED JUNO_AGENT_BUILD_TESTS)
-    set(JUNO_AGENT_BUILD_TESTS "${JUNO_HARNESS_BUILD_TESTS}" CACHE BOOL "" FORCE)
-endif()
-if(DEFINED JUNO_HARNESS_BUILD_EXAMPLES AND NOT DEFINED JUNO_AGENT_BUILD_EXAMPLES)
-    set(JUNO_AGENT_BUILD_EXAMPLES "${JUNO_HARNESS_BUILD_EXAMPLES}" CACHE BOOL "" FORCE)
-endif()
-if(DEFINED JUNO_HARNESS_ENABLE_LLAMA_CPP AND NOT DEFINED JUNO_AGENT_ENABLE_LLAMA_CPP)
-    set(JUNO_AGENT_ENABLE_LLAMA_CPP "${JUNO_HARNESS_ENABLE_LLAMA_CPP}" CACHE BOOL "" FORCE)
-endif()
-if(DEFINED JUNO_HARNESS_FETCH_DEPS AND NOT DEFINED JUNO_AGENT_FETCH_DEPS)
-    set(JUNO_AGENT_FETCH_DEPS "${JUNO_HARNESS_FETCH_DEPS}" CACHE BOOL "" FORCE)
-endif()
-if(DEFINED JUNO_HARNESS_BUILD_LLAMA_SERVER AND NOT DEFINED JUNO_AGENT_BUILD_LLAMA_SERVER)
-    set(JUNO_AGENT_BUILD_LLAMA_SERVER "${JUNO_HARNESS_BUILD_LLAMA_SERVER}" CACHE BOOL "" FORCE)
-endif()
-
 option(JUNO_AGENT_BUILD_TESTS "Build Juno Agent Runtime SDK unit tests" OFF)
 option(JUNO_AGENT_BUILD_EXAMPLES "Build Juno Agent Runtime SDK playground executables" ON)
 option(JUNO_AGENT_ENABLE_LLAMA_CPP "Build the in-process llama.cpp model" ON)
@@ -33,7 +16,6 @@ add_library(juno_agent_runtime SHARED
     src/memory.cpp
     src/llama_cpp_model.cpp)
 add_library(Juno::Agent ALIAS juno_agent_runtime)
-add_library(Juno::Harness ALIAS juno_agent_runtime)
 set_target_properties(juno_agent_runtime PROPERTIES EXPORT_NAME Agent)
 
 target_compile_features(juno_agent_runtime PUBLIC cxx_std_20)
@@ -112,12 +94,11 @@ if(JUNO_AGENT_ENABLE_LLAMA_CPP)
 endif()
 
 if(JUNO_AGENT_BUILD_TESTS)
-    add_library(juno_harness_test_support STATIC
+    add_library(juno_sdk_test_support STATIC
         test_support/fake_model.cpp)
-    add_library(Juno::AgentTestSupport ALIAS juno_harness_test_support)
-    add_library(Juno::HarnessTestSupport ALIAS juno_harness_test_support)
-    target_link_libraries(juno_harness_test_support PUBLIC Juno::Agent)
-    target_include_directories(juno_harness_test_support
+    add_library(Juno::AgentTestSupport ALIAS juno_sdk_test_support)
+    target_link_libraries(juno_sdk_test_support PUBLIC Juno::Agent)
+    target_include_directories(juno_sdk_test_support
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test_support>)
 endif()
@@ -149,12 +130,12 @@ if(JUNO_AGENT_BUILD_TESTS)
             FetchContent_MakeAvailable(catch2)
         endif()
     endif()
-    add_executable(juno_harness_tests tests/agent_tests.cpp)
-    target_link_libraries(juno_harness_tests PRIVATE
+    add_executable(juno_sdk_tests tests/agent_tests.cpp)
+    target_link_libraries(juno_sdk_tests PRIVATE
         Juno::Agent
-        juno_harness_test_support
+        juno_sdk_test_support
         Catch2::Catch2WithMain)
-    add_test(NAME juno_harness_tests COMMAND juno_harness_tests)
+    add_test(NAME juno_sdk_tests COMMAND juno_sdk_tests)
 endif()
 
 install(TARGETS juno_agent_runtime EXPORT JunoAgentRuntimeTargets

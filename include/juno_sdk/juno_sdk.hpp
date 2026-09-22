@@ -1,5 +1,5 @@
 /**
- * @file juno_harness.hpp
+ * @file juno_sdk.hpp
  * @brief Main header file for the Juno inference model.
  *
  * This file includes the necessary headers for using the Juno inference model,
@@ -9,6 +9,6 @@
 
 #pragma once
 
-#include "juno_harness/agent.hpp"
-#include "juno_harness/llama_cpp_model.hpp"
-#include "juno_harness/memory.hpp"
+#include "juno_sdk/agent.hpp"
+#include "juno_sdk/llama_cpp_model.hpp"
+#include "juno_sdk/memory.hpp"

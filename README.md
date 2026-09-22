@@ -71,7 +71,7 @@ cmake --build build-test
 ctest --test-dir build-test --output-on-failure
 ```
 
-The automated tests link the build-only `juno_harness_test_support` target, which provides `FakeModel`; they do not download a model. They cover final responses, tool loops, unknown tools, iteration limits, callbacks, handler-owned argument validation, and independent conversation histories.
+The automated tests link the build-only `juno_sdk_test_support` target, which provides `FakeModel`; they do not download a model. They cover final responses, tool loops, unknown tools, iteration limits, callbacks, handler-owned argument validation, and independent conversation histories.
 
 ## Use from another CMake application
 
@@ -104,7 +104,7 @@ Minimal SDK use:
 #include <memory>
 #include <string_view>
 #include <utility>
-#include "juno_harness/juno_harness.hpp"
+#include "juno_sdk/juno_sdk.hpp"
 
 auto model = juno::sdk::LlamaCppModel::create({.model_path = "/path/to/model.gguf"});
 auto agent = juno::sdk::Agent::create({
@@ -226,10 +226,10 @@ Juno uses a small JSON tool protocol rather than provider-native tool calling. T
 
 | Path | Responsibility |
 | --- | --- |
-| `include/juno_harness` | Public SDK API: runtime, messages, tools, errors, and production models. |
+| `include/juno_sdk` | Public SDK API: runtime, messages, tools, errors, and production models. |
 | `src/agent.cpp` | Agent loop, conversation transcript, tool dispatch, and events. |
 | `test_support/fake_model.cpp` | Deterministic scripted model for build-only tests. |
-| `test_support/juno_harness/fake_model.hpp` | Build-only fake model API for tests. |
+| `test_support/juno_sdk/fake_model.hpp` | Build-only fake model API for tests. |
 | `src/llama_cpp_model.cpp` | Private direct llama.cpp adapter. |
 | `examples` | Independent planning, session-prep, and mixing playground executables. |
 | `tests` | Fake-model unit tests. |

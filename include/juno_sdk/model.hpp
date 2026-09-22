@@ -6,8 +6,8 @@
 
 #include <span>
 #include <stop_token>
-#include "juno_harness/expected.hpp"
-#include "juno_harness/types.hpp"
+#include "juno_sdk/expected.hpp"
+#include "juno_sdk/types.hpp"
 
 /** Namespace for the Juno inference model. */
 namespace juno::sdk {

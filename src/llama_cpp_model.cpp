@@ -9,7 +9,7 @@
  *
  */
 
-#include "juno_harness/llama_cpp_model.hpp"
+#include "juno_sdk/llama_cpp_model.hpp"
 
 #include <fstream>
 #include <mutex>
@@ -489,11 +489,11 @@ LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)
 LlamaCppModel::~LlamaCppModel() = default;
 std::shared_ptr<LlamaCppModel> LlamaCppModel::create(LlamaCppOptions) {
   throw ModelError(Error{ErrorCode::ModelUnavailable,
-                         "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
+                         "rebuild with JUNO_AGENT_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
 }
 std::shared_ptr<LlamaCppModel> LlamaCppModel::create(const std::string &) {
   throw ModelError(Error{ErrorCode::ModelUnavailable,
-                         "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
+                         "rebuild with JUNO_AGENT_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
 }
 Expected<GenerationResponse>
 LlamaCppModel::generate(const GenerationRequest &, const EventCallback &, std::stop_token) {

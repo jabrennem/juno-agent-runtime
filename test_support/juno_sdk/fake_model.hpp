@@ -6,7 +6,7 @@
 
 #include <vector>
 
-#include "juno_harness/model.hpp"
+#include "juno_sdk/model.hpp"
 
 namespace juno::sdk {
 

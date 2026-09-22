@@ -15,8 +15,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "juno_harness/memory.hpp"
-#include "juno_harness/model.hpp"
+#include "juno_sdk/memory.hpp"
+#include "juno_sdk/model.hpp"
 
 namespace juno::sdk {
 

@@ -4,8 +4,8 @@
 #include <stdexcept>
 #include <stop_token>
 
-#include "juno_harness/fake_model.hpp"
-#include "juno_harness/juno_harness.hpp"
+#include "juno_sdk/fake_model.hpp"
+#include "juno_sdk/juno_sdk.hpp"
 
 namespace {
 juno::sdk::Agent make_agent(std::shared_ptr<juno::sdk::Model> model,

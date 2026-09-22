@@ -1,4 +1,4 @@
-#include "juno_harness/memory.hpp"
+#include "juno_sdk/memory.hpp"
 
 #include <algorithm>
 #include <cctype>

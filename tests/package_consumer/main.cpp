@@ -1,7 +1,7 @@
 #include <memory>
 #include <stop_token>
 
-#include "juno_harness/juno_harness.hpp"
+#include "juno_sdk/juno_sdk.hpp"
 
 namespace {
 

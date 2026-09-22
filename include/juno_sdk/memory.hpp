@@ -1,9 +1,9 @@
 /**
  * @file memory.hpp
- * @brief Memory management interfaces for the Juno harness.
+ * @brief Memory management interfaces for the Juno SDK.
  *
  * This file defines the interfaces and classes related to memory management
- * within the Juno harness. It includes definitions for memory entries, memory
+ * within the Juno SDK. It includes definitions for memory entries, memory
  * stores, and the memory manager that orchestrates memory operations.
  *
  * The MemoryManager class provides methods to remember and recall memory entries
@@ -13,7 +13,7 @@
  * The MemoryStore interface allows for different implementations of memory storage,
  * enabling flexibility in how memories are persisted and retrieved.
  *
- * @note This file is part of the Juno harness project and is intended for use
+ * @note This file is part of the Juno SDK project and is intended for use
  *       within that context. It relies on the nlohmann::json library for JSON
  *       handling and the Expected class for error handling.
  *
@@ -28,7 +28,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "juno_harness/expected.hpp"
+#include "juno_sdk/expected.hpp"
 
 namespace juno::sdk {
 

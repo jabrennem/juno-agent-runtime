@@ -3,7 +3,7 @@
  * @brief Implements the Agent and Conversation inference loop.
  */
 
-#include "juno_harness/agent.hpp"
+#include "juno_sdk/agent.hpp"
 
 #include <algorithm>
 #include <exception>
