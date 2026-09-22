@@ -53,6 +53,16 @@ std::string memory_store_parameter_description(const MemoryManager &memory) {
   return description;
 }
 
+std::string initial_system_context(const AgentOptions &options) {
+  std::string context = options.system_prompt;
+  for (const auto &document : options.steering.documents) {
+    if (!context.empty())
+      context += "\n\n";
+    context += "Steering document: " + document.name + "\n" + document.content;
+  }
+  return context;
+}
+
 } // namespace
 
 Tool Tool::create(ToolOptions options) {
@@ -90,6 +100,24 @@ Agent Agent::create(AgentOptions options) {
   if (options.generation.temperature < 0.0F || options.generation.temperature > 2.0F)
     throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
                                    "generation.temperature must be between 0 and 2"});
+  if (options.steering.max_bytes == 0)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "steering.max_bytes must be greater than zero"});
+  std::size_t steering_bytes = 0;
+  std::unordered_set<std::string> steering_names;
+  for (const auto &document : options.steering.documents) {
+    if (document.name.empty())
+      throw ConfigurationError(
+          Error{ErrorCode::InvalidConfiguration, "steering document name is required"});
+    if (!steering_names.insert(document.name).second)
+      throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                     "steering document names must be unique: " + document.name});
+    if (document.content.size() > options.steering.max_bytes -
+                                     std::min(steering_bytes, options.steering.max_bytes))
+      throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                     "steering documents exceed the configured byte limit"});
+    steering_bytes += document.content.size();
+  }
   std::unordered_set<std::string> names;
   for (const auto &tool : options.tools) {
     if (tool.definition.name.empty() || (!tool.handler && !tool.json_handler))
@@ -194,8 +222,9 @@ Conversation::Conversation(std::shared_ptr<Model> model,
                            std::shared_ptr<const AgentOptions> options,
                            std::shared_ptr<MemoryManager> memory)
     : model_(std::move(model)), options_(std::move(options)), memory_(std::move(memory)) {
-  if (!options_->system_prompt.empty()) {
-    history_.push_back(Message{Role::System, options_->system_prompt});
+  const auto system_context = initial_system_context(*options_);
+  if (!system_context.empty()) {
+    history_.push_back(Message{Role::System, system_context});
   }
 }
 
@@ -346,8 +375,9 @@ const std::vector<Message> &Conversation::history() const {
  */
 void Conversation::clear() {
   history_.clear();
-  if (!options_->system_prompt.empty()) {
-    history_.push_back(Message{Role::System, options_->system_prompt});
+  const auto system_context = initial_system_context(*options_);
+  if (!system_context.empty()) {
+    history_.push_back(Message{Role::System, system_context});
   }
 }
 

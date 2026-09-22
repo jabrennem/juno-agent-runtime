@@ -48,6 +48,18 @@ struct ToolOptions {
   JsonToolHandler handler;
 };
 
+/** A user-authored document that guides agent behavior. */
+struct SteeringDocument {
+  std::string name;
+  std::string content;
+};
+
+/** Steering documents loaded into the initial system context. */
+struct SteeringOptions {
+  std::vector<SteeringDocument> documents;
+  std::size_t max_bytes{32 * 1024};
+};
+
 /** A tool definition and the handler that executes it. */
 struct Tool {
   ToolDefinition definition;
@@ -62,6 +74,7 @@ struct Tool {
 struct AgentOptions {
   std::shared_ptr<Model> model;
   std::string system_prompt;
+  SteeringOptions steering;
   GenerationConfig generation;
   ReasoningEffort reasoning_effort{ReasoningEffort::Medium};
   std::size_t max_inference_turns{8};

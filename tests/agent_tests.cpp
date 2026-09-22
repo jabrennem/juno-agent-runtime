@@ -37,6 +37,35 @@ TEST_CASE("Options factories preserve conversation snapshots") {
   CHECK(conversation.history().front().content == "initial");
 }
 
+TEST_CASE("Steering documents are composed into the initial system context") {
+  auto model = std::make_shared<juno::sdk::FakeModel>(
+      std::vector<juno::sdk::FakeStep>{juno::sdk::FakeStep::final("done")});
+  auto agent = juno::sdk::Agent::create({
+      .model = model,
+      .system_prompt = "base",
+      .steering = {.documents = {{"first.md", "first rules"}, {"second.md", "second rules"}}},
+  });
+
+  const auto conversation = agent.start_conversation();
+  REQUIRE(conversation.history().size() == 1);
+  CHECK(conversation.history().front().content ==
+        "base\n\nSteering document: first.md\nfirst rules\n\nSteering document: second.md\nsecond rules");
+}
+
+TEST_CASE("Steering configuration validates names and total size") {
+  auto model = std::make_shared<juno::sdk::FakeModel>(std::vector<juno::sdk::FakeStep>{});
+  CHECK_THROWS_AS(juno::sdk::Agent::create({
+                      .model = model,
+                      .steering = {.documents = {{"", "rules"}}},
+                  }),
+                  juno::sdk::ConfigurationError);
+  CHECK_THROWS_AS(juno::sdk::Agent::create({
+                      .model = model,
+                      .steering = {.documents = {{"rules.md", "too large"}}, .max_bytes = 3},
+                  }),
+                  juno::sdk::ConfigurationError);
+}
+
 TEST_CASE("A fake model returns a final response") {
   auto model = std::make_shared<juno::sdk::FakeModel>(
       std::vector<juno::sdk::FakeStep>{

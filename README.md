@@ -117,6 +117,25 @@ auto result = conversation.run("Say hello.", [](const juno::sdk::AgentEvent& eve
 });
 ```
 
+User-authored steering can be supplied as ordered documents. Steering is loaded into the initial
+system context for every conversation created by the agent:
+
+```cpp
+auto agent = juno::sdk::Agent::create({
+    .model = model,
+    .system_prompt = "Be concise.",
+    .steering = {
+        .documents = {
+            {"production-rules.md", "Prefer conservative changes."},
+            {"project-context.md", "This project targets local agents."},
+        },
+    },
+});
+```
+
+Steering documents are ordered as provided and limited to 32 KiB by default. The application owns
+file loading, so it can choose its own global, project, or agent-specific document conventions.
+
 Tools are created and validated independently, and invalid options throw a typed exception:
 
 ```cpp

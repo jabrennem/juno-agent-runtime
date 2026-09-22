@@ -125,12 +125,9 @@ endif()
 if(JUNO_AGENT_BUILD_EXAMPLES)
     add_executable(juno_session_prep_planning_playground
         examples/session_prep_planning_playground.cpp)
-    add_executable(juno_mix_playground
-        examples/mix_playground.cpp)
     add_executable(juno_weather_playground
         examples/weather_playground.cpp)
     target_link_libraries(juno_session_prep_planning_playground PRIVATE Juno::Agent)
-    target_link_libraries(juno_mix_playground PRIVATE Juno::Agent)
     target_link_libraries(juno_weather_playground PRIVATE
         Juno::Agent
         nlohmann_json::nlohmann_json)

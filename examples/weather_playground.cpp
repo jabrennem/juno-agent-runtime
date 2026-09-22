@@ -1,4 +1,6 @@
+#include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -150,6 +152,15 @@ bool is_blank(const std::string &text) {
   return text.find_first_not_of(" \t\r\n") == std::string::npos;
 }
 
+std::optional<juno::sdk::SteeringDocument> load_steering_file(const std::string &path) {
+  std::ifstream input(path);
+  if (!input)
+    return std::nullopt;
+  std::ostringstream content;
+  content << input.rdbuf();
+  return juno::sdk::SteeringDocument{path, content.str()};
+}
+
 void print_help() {
   std::cout << "Ask for a weather forecast for any city.\n"
             << "Example: What's the weather in Seattle for five days?\n"
@@ -238,12 +249,21 @@ int main(int argc, char **argv) {
     }}
   );
 
+  juno::sdk::SteeringOptions steering;
+  for (const auto &path : {std::string{"examples/weather-steering.md"}}) {
+    if (auto document = load_steering_file(path)) {
+      std::cout << "Loaded steering: " << path << " (" << document->content.size() << " bytes)\n";
+      steering.documents.push_back(std::move(*document));
+    }
+  }
+
   // Create an agent that uses the model and the weather forecast tool
   auto weather_agent = juno::sdk::Agent::create({
       .model = model,
       .system_prompt =
           "You are WeatherAgent. Answer weather questions concisely using the "
           "available tools and durable memory when useful.",
+      .steering = std::move(steering),
       .max_inference_turns = 6,
       .tools = {std::move(forecast_tool)},
   });
