@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace juno::harness {
+namespace juno::sdk {
 
 FakeStep FakeStep::final(std::string text) {
   FakeStep step;
@@ -54,4 +54,4 @@ const std::vector<ReasoningEffort>& FakeModel::reasoning_effort_requests() const
   return reasoning_effort_requests_;
 }
 
-}  // namespace juno::harness
+}  // namespace juno::sdk

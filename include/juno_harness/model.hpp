@@ -10,7 +10,7 @@
 #include "juno_harness/types.hpp"
 
 /** Namespace for the Juno inference model. */
-namespace juno::harness {
+namespace juno::sdk {
 
 /** Request for generating text. */
 struct GenerationRequest {
@@ -35,4 +35,4 @@ class Model {
                                                 std::stop_token stop_token) = 0;
 };
 
-}  // namespace juno::harness
+}  // namespace juno::sdk

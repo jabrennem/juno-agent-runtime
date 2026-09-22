@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace juno::harness {
+namespace juno::sdk {
 
 /** Represents the role of a message in a conversation. */
 enum class Role { System, User, Assistant, Tool };
@@ -76,4 +76,4 @@ struct RunResult {
   std::size_t inference_turns{0};
 };
 
-}  // namespace juno::harness
+}  // namespace juno::sdk

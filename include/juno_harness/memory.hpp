@@ -30,7 +30,7 @@
 
 #include "juno_harness/expected.hpp"
 
-namespace juno::harness {
+namespace juno::sdk {
 
 using MemoryMetadata = nlohmann::json;
 
@@ -74,12 +74,12 @@ struct MemoryToolConfig {
 struct MemoryManagerOptions {
   std::vector<std::shared_ptr<MemoryStore>> stores;
   MemoryPolicy policy{};
-  MemoryToolConfig searchTool{.enabled = true,
-                              .name = "search_memory",
-                              .description = "Search durable memory for relevant facts."};
-  MemoryToolConfig addTool{.enabled = false,
-                           .name = "add_memory",
-                           .description = "Save an important fact for future conversations."};
+  MemoryToolConfig search_tool{.enabled = true,
+                               .name = "search_memory",
+                               .description = "Search durable memory for relevant facts."};
+  MemoryToolConfig add_tool{.enabled = false,
+                            .name = "add_memory",
+                            .description = "Save an important fact for future conversations."};
 };
 
 // MemoryManager orchestrates memory operations across multiple memory stores.
@@ -87,11 +87,11 @@ class MemoryManager {
 public:
   explicit MemoryManager(MemoryManagerOptions options = {});
 
-  MemoryManager &addStore(std::shared_ptr<MemoryStore> store);
-  MemoryManager &setPolicy(MemoryPolicy policy);
+  MemoryManager &add_store(std::shared_ptr<MemoryStore> store);
+  MemoryManager &set_policy(MemoryPolicy policy);
   const MemoryPolicy &policy() const;
-  const MemoryToolConfig &searchTool() const;
-  const MemoryToolConfig &addTool() const;
+  const MemoryToolConfig &search_tool() const;
+  const MemoryToolConfig &add_tool() const;
   const std::vector<std::shared_ptr<MemoryStore>> &stores() const;
 
   Expected<void> remember(MemoryEntry entry, const std::vector<std::string> &stores = {});
@@ -102,9 +102,10 @@ private:
   MemoryManagerOptions options_;
 };
 
-std::shared_ptr<MemoryManager> createMemoryManager(MemoryManagerOptions options = {});
-std::shared_ptr<MemoryStore> createMemoryStore(MemoryStoreOptions options);
-std::shared_ptr<MemoryStore> createMemoryStore(const std::string &name, const std::string &path);
-std::shared_ptr<MemoryStore> createMemoryStore(const std::string &path);
+std::shared_ptr<MemoryManager> create_memory_manager(MemoryManagerOptions options = {});
+std::shared_ptr<MemoryStore> create_memory_store(MemoryStoreOptions options);
+std::shared_ptr<MemoryStore> create_memory_store(const std::string &name, const std::string &path);
+std::shared_ptr<MemoryStore> create_memory_store(const std::string &path);
 
-} // namespace juno::harness
+
+} // namespace juno::sdk

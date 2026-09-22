@@ -9,8 +9,6 @@
 
 namespace {
 
-using namespace juno::harness;
-
 constexpr std::string_view kCyan = "\033[36m";
 constexpr std::string_view kYellow = "\033[33m";
 constexpr std::string_view kBlue = "\033[34m";
@@ -42,10 +40,10 @@ size_t write_response(char *data, size_t size, size_t count, void *user_data) {
 }
 
 // Fetch JSON data from a given URL using libcurl
-Expected<JsonObject> get_json(const std::string &url) {
+juno::sdk::Expected<juno::sdk::JsonObject> get_json(const std::string &url) {
   CURL *curl = curl_easy_init();
   if (!curl)
-    return Error{ErrorCode::ToolExecutionFailed, "could not initialize HTTP client"};
+    return juno::sdk::Error{juno::sdk::ErrorCode::ToolExecutionFailed, "could not initialize HTTP client"};
 
   std::string response;
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -60,35 +58,35 @@ Expected<JsonObject> get_json(const std::string &url) {
   curl_easy_cleanup(curl);
 
   if (result != CURLE_OK)
-    return Error{
-        ErrorCode::ToolExecutionFailed,
+    return juno::sdk::Error{
+        juno::sdk::ErrorCode::ToolExecutionFailed,
         std::string{"weather request failed: "} + curl_easy_strerror(result)
     };
   if (status < 200 || status >= 300)
-    return Error{
-        ErrorCode::ToolExecutionFailed, "weather service returned HTTP " + std::to_string(status)
+    return juno::sdk::Error{
+        juno::sdk::ErrorCode::ToolExecutionFailed, "weather service returned HTTP " + std::to_string(status)
     };
 
   try {
-    return JsonObject::parse(response);
-  } catch (const JsonObject::exception &error) {
-    return Error{
-        ErrorCode::ToolExecutionFailed,
+    return juno::sdk::JsonObject::parse(response);
+  } catch (const juno::sdk::JsonObject::exception &error) {
+    return juno::sdk::Error{
+        juno::sdk::ErrorCode::ToolExecutionFailed,
         std::string{"weather service returned invalid JSON: "} + error.what()
     };
   }
 }
 
 // Geocode a city name to get its latitude, longitude, and timezone
-Expected<Location> geocode_city(const std::string &city) {
+juno::sdk::Expected<Location> geocode_city(const std::string &city) {
   CURL *curl = curl_easy_init();
   if (!curl)
-    return Error{ErrorCode::ToolExecutionFailed, "could not initialize HTTP client"};
+    return juno::sdk::Error{juno::sdk::ErrorCode::ToolExecutionFailed, "could not initialize HTTP client"};
 
   char *encoded = curl_easy_escape(curl, city.c_str(), 0);
   if (!encoded) {
     curl_easy_cleanup(curl);
-    return Error{ErrorCode::ToolExecutionFailed, "could not encode city name"};
+    return juno::sdk::Error{juno::sdk::ErrorCode::ToolExecutionFailed, "could not encode city name"};
   }
   const std::string url = "https://geocoding-api.open-meteo.com/v1/search?name="
                           + std::string(encoded) + "&count=1&language=en&format=json";
@@ -99,7 +97,7 @@ Expected<Location> geocode_city(const std::string &city) {
   if (!result)
     return result.error();
   if (!result.value().contains("results") || result.value()["results"].empty())
-    return Error{ErrorCode::ToolExecutionFailed, "could not find that city"};
+    return juno::sdk::Error{juno::sdk::ErrorCode::ToolExecutionFailed, "could not find that city"};
 
   const auto &match = result.value()["results"].front();
   return Location{
@@ -111,7 +109,7 @@ Expected<Location> geocode_city(const std::string &city) {
 }
 
 // Fetch the weather forecast for a given location and number of days
-Expected<WeatherForecast> fetch_forecast(const Location &location, int days) {
+juno::sdk::Expected<WeatherForecast> fetch_forecast(const Location &location, int days) {
   std::ostringstream url;
   url << "https://api.open-meteo.com/v1/forecast?latitude=" << location.latitude
       << "&longitude=" << location.longitude << "&current=temperature_2m,weather_code"
@@ -131,9 +129,9 @@ Expected<WeatherForecast> fetch_forecast(const Location &location, int days) {
         .low_temperature = daily.at("temperature_2m_min").at(0),
         .weather_code = current.at("weather_code")
     };
-  } catch (const JsonObject::exception &error) {
-    return Error{
-        ErrorCode::ToolExecutionFailed,
+  } catch (const juno::sdk::JsonObject::exception &error) {
+    return juno::sdk::Error{
+        juno::sdk::ErrorCode::ToolExecutionFailed,
         std::string{"weather response was missing expected data: "} + error.what()
     };
   }
@@ -174,46 +172,41 @@ int main(int argc, char **argv) {
   }
 
   // Load the LLaMA.cpp model
-  auto model = createLlamaCppModel({
+  auto model = juno::sdk::LlamaCppModel::create({
     .model_path = argv[1]
   });
-  if (!model) {
-    std::cerr << "Model setup failed: " << model.error().message << '\n';
-    curl_cleanup();
-    return 1;
-  }
 
   // Create a memory manager for the user's recent weather requests.
-  // auto recent_forecasts_store = createMemoryStore({
+  // auto recent_forecasts_store = create_memory_store({
   //   .name = "weather",
   //   .path = "~/.juno/memory/recent_forecasts.json",
   //   .description = "Recent cities and weather requests.",
   // });
-  // auto weather_memory = createMemoryManager({
+  // auto weather_memory = create_memory_manager({
   //   .stores = {recent_forecasts_store},
   //   .policy = {
   //     .auto_recall_enabled = false,
   //     .max_recalled_memories = 5
   //   },
-  //   .searchTool = {
+  //   .search_tool = {
   //     .enabled = true,
   //     .description = "Look up recent forecasts for locations when useful."
   //   },
-  //   .addTool = {
+  //   .add_tool = {
   //     .enabled = true,
   //     .description = "Save durable weather preferences or recurring locations for later conversations."
   //   }
   // });
 
   // Create a tool for fetching the weather forecast
-  auto weather_forecast_tool = createTool({
+  auto forecast_tool = juno::sdk::Tool::create({
     .name = "weather_forecast",
     .description = "Get weather forecast for a city.",
     .parameters = {
       {"city", "The city to forecast", "string", true},
       {"days", "Number of days for the forecast", "integer", false}
     },
-    .handler = [](const JsonObject &params) -> ToolResult {
+    .handler = [](const juno::sdk::JsonObject &params) -> juno::sdk::ToolResult {
       // Determine the city to fetch the forecast for
       std::string city;
       if (params.contains("city") && params["city"].is_string())
@@ -246,16 +239,15 @@ int main(int argc, char **argv) {
   );
 
   // Create an agent that uses the model and the weather forecast tool
-  Agent weather_agent(model.value());
-  weather_agent
-      .setSystemPrompt(
+  auto weather_agent = juno::sdk::Agent::create({
+      .model = model,
+      .system_prompt =
           "You are WeatherAgent. Answer weather questions concisely using the "
-          "available tools and durable memory when useful."
-      )
-      .setMaxInferenceTurns(6)
-      .setReasoningEffort(ReasoningEffort::Medium)
-      .registerTool(weather_forecast_tool);
-  auto conversation = weather_agent.createConversation();
+          "available tools and durable memory when useful.",
+      .max_inference_turns = 6,
+      .tools = {std::move(forecast_tool)},
+  });
+  auto conversation = weather_agent.start_conversation();
 
   // Start the interactive playground
   std::cout << "Weather playground\n";
@@ -282,16 +274,16 @@ int main(int argc, char **argv) {
 
     std::cout << "assistant:\n";
     std::string forecast_fallback;
-    auto result = conversation.run(input, [&](const AgentEvent &event) {
-      if (event.type == EventType::Prompt) {
+    auto result = conversation.run(input, [&](const juno::sdk::AgentEvent &event) {
+      if (event.type == juno::sdk::EventType::Prompt) {
         std::cout << kMagenta << event.text << kReset << std::flush;
-      } else if (event.type == EventType::ReasoningDelta) {
+      } else if (event.type == juno::sdk::EventType::ReasoningDelta) {
         std::cout << kCyan << event.text << kReset << std::flush;
-      } else if (event.type == EventType::TextDelta) {
+      } else if (event.type == juno::sdk::EventType::TextDelta) {
         std::cout << kBlue << event.text << kReset << std::flush;
-      } else if (event.type == EventType::ToolStarted) {
+      } else if (event.type == juno::sdk::EventType::ToolStarted) {
         std::cout << kYellow << "tool: " << event.tool_call.name << "(" << event.tool_call.arguments_json << ")" << kReset << '\n';
-      } else if (event.type == EventType::ToolCompleted) {
+      } else if (event.type == juno::sdk::EventType::ToolCompleted) {
         std::cout << kYellow << "tool completed: " << event.tool_call.name << kReset << '\n';
       }
     });

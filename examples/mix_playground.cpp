@@ -6,11 +6,11 @@
 
 namespace {
 
-using namespace juno::harness;
+using namespace juno::sdk;
 
-// Returns an AgentSpec configured for the MixAgent.
-AgentSpec mix_spec() {
-  AgentSpec spec;
+// Returns AgentOptions configured for the MixAgent.
+AgentOptions mix_options() {
+  AgentOptions spec;
   spec.system_prompt = "You are MixAgent. Help a mix engineer through an "
                        "iterative tool loop. Inspect the current "
                        "mix before acting, make incremental and reversible mix "
@@ -55,14 +55,12 @@ int main(int argc, char **argv) {
   }
 
   // Create a LlamaCppModel instance with the specified model path and context size.
-  auto model = createLlamaCppModel({.model_path = argv[1], .context_size = 4096});
-  if (!model) {
-    std::cerr << "Model setup failed: " << model.error().message << '\n';
-    return 1;
-  }
+  auto model = LlamaCppModel::create({.model_path = argv[1], .context_size = 4096});
 
   // Create an Agent instance with the MixAgent specification and start a conversation.
-  Agent agent(model.value(), mix_spec());
+  auto options = mix_options();
+  options.model = model;
+  auto agent = Agent::create(std::move(options));
   auto conversation = agent.start_conversation();
   std::cout << "Mix agent playground\n";
   print_help();

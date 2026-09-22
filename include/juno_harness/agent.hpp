@@ -18,7 +18,7 @@
 #include "juno_harness/memory.hpp"
 #include "juno_harness/model.hpp"
 
-namespace juno::harness {
+namespace juno::sdk {
 
 using JsonObject = nlohmann::json;
 
@@ -53,24 +53,20 @@ struct Tool {
   ToolDefinition definition;
   ToolHandler handler;
   JsonToolHandler json_handler;
+
+  /** Creates and validates a tool definition. */
+  static Tool create(ToolOptions options);
 };
 
-/** Creates a tool with a simple JSON callback and parameter descriptions. */
-Tool createTool(ToolOptions options);
-
-/** Convenience overload for positional tool construction. */
-Tool createTool(const std::string &name,
-                const std::string &description,
-                const std::vector<ToolParameter> &parameters,
-                JsonToolHandler handler);
-
 /** Immutable behavior shared by every conversation created from an Agent. */
-struct AgentSpec {
+struct AgentOptions {
+  std::shared_ptr<Model> model;
   std::string system_prompt;
   GenerationConfig generation;
   ReasoningEffort reasoning_effort{ReasoningEffort::Medium};
   std::size_t max_inference_turns{8};
   std::vector<Tool> tools;
+  std::shared_ptr<MemoryManager> memory;
 };
 
 /** One independent conversation with an Agent. */
@@ -88,11 +84,11 @@ public:
 private:
   friend class Agent;
   Conversation(std::shared_ptr<Model> model,
-               std::shared_ptr<const AgentSpec> spec,
+               std::shared_ptr<const AgentOptions> options,
                std::shared_ptr<MemoryManager> memory);
 
   std::shared_ptr<Model> model_;
-  std::shared_ptr<const AgentSpec> spec_;
+  std::shared_ptr<const AgentOptions> options_;
   std::shared_ptr<MemoryManager> memory_;
   std::vector<Message> history_;
 };
@@ -100,23 +96,25 @@ private:
 /** Reusable model and immutable behavior used to create conversations. */
 class Agent {
 public:
-  Agent(std::shared_ptr<Model> model, AgentSpec spec = {});
-  [[nodiscard]] Conversation start_conversation() const;
-  [[nodiscard]] Conversation createConversation() const;
+  /** Creates and validates a reusable agent. */
+  static Agent create(AgentOptions options);
 
-  Agent &setSystemPrompt(std::string system_prompt);
-  Agent &setGenerationConfig(GenerationConfig generation);
-  Agent &setTemperature(float temperature);
-  Agent &setMaxTokens(std::size_t max_tokens);
-  Agent &setReasoningEffort(ReasoningEffort reasoning_effort);
-  Agent &setMaxInferenceTurns(std::size_t max_inference_turns);
-  Agent &registerTool(Tool tool);
-  Agent &setMemory(std::shared_ptr<MemoryManager> memory);
+  Agent(Agent &&) = default;
+  Agent &operator=(Agent &&) = default;
+  Agent(const Agent &) = default;
+  Agent &operator=(const Agent &) = default;
+
+  [[nodiscard]] Conversation start_conversation() const;
+  /** Adds a tool for conversations created after this call. */
+  void add_tool(Tool tool);
+  void set_memory(std::shared_ptr<MemoryManager> memory);
+
 
 private:
+  Agent(AgentOptions options);
   std::shared_ptr<Model> model_;
-  AgentSpec spec_;
+  AgentOptions options_;
   std::shared_ptr<MemoryManager> memory_;
 };
 
-} // namespace juno::harness
+} // namespace juno::sdk

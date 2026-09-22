@@ -8,7 +8,7 @@
 
 #include "juno_harness/model.hpp"
 
-namespace juno::harness {
+namespace juno::sdk {
 
 struct FakeStep {
   enum class Kind { Final, ToolCalls, Failure };
@@ -39,4 +39,4 @@ class FakeModel final : public Model {
   std::vector<ReasoningEffort> reasoning_effort_requests_;
 };
 
-}  // namespace juno::harness
+}  // namespace juno::sdk

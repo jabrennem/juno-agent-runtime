@@ -8,11 +8,12 @@
 
 #include <concepts>
 #include <string>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
-namespace juno::harness {
+namespace juno::sdk {
 
 /** Error codes for the Juno inference model. */
 enum class ErrorCode {
@@ -31,6 +32,28 @@ enum class ErrorCode {
 struct Error {
   ErrorCode code;
   std::string message;
+};
+
+/** Base exception for failures at the SDK boundary. */
+class SdkError : public std::runtime_error {
+public:
+  explicit SdkError(Error error)
+      : std::runtime_error(error.message), code(error.code), message(std::move(error.message)) {}
+
+  ErrorCode code;
+  std::string message;
+};
+
+/** Thrown when user-supplied SDK options are invalid. */
+class ConfigurationError : public SdkError {
+public:
+  using SdkError::SdkError;
+};
+
+/** Thrown when an inference model cannot be loaded or used. */
+class ModelError : public SdkError {
+public:
+  using SdkError::SdkError;
 };
 
 template <typename T>
@@ -72,4 +95,4 @@ inline Error make_unexpected(Error error) {
   return error;
 }
 
-}  // namespace juno::harness
+}  // namespace juno::sdk

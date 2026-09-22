@@ -25,7 +25,7 @@
 
 // The llama.cpp library is used for inference with GGUF models. It provides
 // functions for model loading, tokenization, and generation.
-namespace juno::harness {
+namespace juno::sdk {
 
 // Implementation of the LlamaCppModel class, which manages inference sessions
 // using llama.cpp.
@@ -169,14 +169,14 @@ Expected<GenerationResponse> parse_response(const std::string &text) {
 
 // Internal implementation details for LlamaCppModel.
 struct LlamaCppModel::Impl {
-  explicit Impl(LlamaCppConfig value) : config(std::move(value)) {}
+  explicit Impl(LlamaCppOptions value) : config(std::move(value)) {}
   ~Impl() {
     chat_templates.reset();
     if (model)
       llama_model_free(model);
   }
 
-  LlamaCppConfig config;
+  LlamaCppOptions config;
   llama_model *model{nullptr};
   common_chat_templates_ptr chat_templates;
   std::mutex mutex;
@@ -185,39 +185,30 @@ struct LlamaCppModel::Impl {
 LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 LlamaCppModel::~LlamaCppModel() = default;
 
-Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig config) {
+std::shared_ptr<LlamaCppModel> LlamaCppModel::create(LlamaCppOptions config) {
   if (config.model_path.empty())
-    return make_unexpected(Error{ErrorCode::InvalidConfiguration, "a GGUF model path is required"});
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration, "a GGUF model path is required"});
   if (!std::filesystem::exists(config.model_path))
-    return make_unexpected(Error{ErrorCode::ModelLoadFailed, "GGUF model file does not exist"});
+    throw ModelError(Error{ErrorCode::ModelLoadFailed, "GGUF model file does not exist"});
   llama_backend_init();
   auto impl = std::make_unique<Impl>(std::move(config));
   auto params = llama_model_default_params();
   impl->model = llama_model_load_from_file(impl->config.model_path.c_str(), params);
   if (!impl->model)
-    return make_unexpected(
-        Error{ErrorCode::ModelLoadFailed, "llama.cpp could not load the GGUF model"});
+    throw ModelError(Error{ErrorCode::ModelLoadFailed, "llama.cpp could not load the GGUF model"});
   try {
     impl->chat_templates =
         common_chat_templates_init(impl->model, impl->config.chat_template_override);
   } catch (const std::exception &exception) {
-    return make_unexpected(Error{ErrorCode::InvalidConfiguration,
-                                 std::string("llama.cpp could not initialize the chat template: ") +
-                                     exception.what()});
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   std::string("llama.cpp could not initialize the chat template: ") +
+                                       exception.what()});
   }
   return std::shared_ptr<LlamaCppModel>(new LlamaCppModel(std::move(impl)));
 }
 
-Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(const std::string &model_path) {
-  return create(LlamaCppConfig{.model_path = model_path});
-}
-
-Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(LlamaCppConfig config) {
-  return LlamaCppModel::create(std::move(config));
-}
-
-Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(const std::string &model_path) {
-  return LlamaCppModel::create(model_path);
+std::shared_ptr<LlamaCppModel> LlamaCppModel::create(const std::string &model_path) {
+  return create(LlamaCppOptions{.model_path = model_path});
 }
 
 /**
@@ -488,33 +479,27 @@ Expected<GenerationResponse> LlamaCppModel::generate(const GenerationRequest &re
   return response;
 }
 
-} // namespace juno::harness
+} // namespace juno::sdk
 
 #else
 
-namespace juno::harness {
+namespace juno::sdk {
 struct LlamaCppModel::Impl {};
 LlamaCppModel::LlamaCppModel(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 LlamaCppModel::~LlamaCppModel() = default;
-Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(LlamaCppConfig) {
-  return make_unexpected(Error{ErrorCode::ModelUnavailable,
-                               "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
+std::shared_ptr<LlamaCppModel> LlamaCppModel::create(LlamaCppOptions) {
+  throw ModelError(Error{ErrorCode::ModelUnavailable,
+                         "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
 }
-Expected<std::shared_ptr<LlamaCppModel>> LlamaCppModel::create(const std::string &) {
-  return make_unexpected(Error{ErrorCode::ModelUnavailable,
-                               "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
-}
-Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(LlamaCppConfig config) {
-  return LlamaCppModel::create(std::move(config));
-}
-Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(const std::string &model_path) {
-  return LlamaCppModel::create(model_path);
+std::shared_ptr<LlamaCppModel> LlamaCppModel::create(const std::string &) {
+  throw ModelError(Error{ErrorCode::ModelUnavailable,
+                         "rebuild with JUNO_HARNESS_ENABLE_LLAMA_CPP=ON to use llama.cpp"});
 }
 Expected<GenerationResponse>
 LlamaCppModel::generate(const GenerationRequest &, const EventCallback &, std::stop_token) {
   return make_unexpected(
       Error{ErrorCode::ModelUnavailable, "llama.cpp support was not compiled into this build"});
 }
-} // namespace juno::harness
+} // namespace juno::sdk
 
 #endif

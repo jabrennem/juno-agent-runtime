@@ -1,4 +1,5 @@
 @PACKAGE_INIT@
 include(CMakeFindDependencyMacro)
-find_dependency(nlohmann_json)
+# nlohmann_json is a header-only implementation detail. Its headers are
+# installed alongside the SDK, so consumers do not need a separate package.
 include("${CMAKE_CURRENT_LIST_DIR}/JunoAgentRuntimeTargets.cmake")

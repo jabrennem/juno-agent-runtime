@@ -16,10 +16,10 @@
 
 #include "juno_harness/model.hpp"
 
-namespace juno::harness {
+namespace juno::sdk {
 
 /** Configuration for the LlamaCpp model. */
-struct LlamaCppConfig {
+struct LlamaCppOptions {
   std::string model_path;
 
   // Maximum number of tokens to keep in the context window.
@@ -45,10 +45,10 @@ struct LlamaCppConfig {
 class LlamaCppModel final : public Model {
 public:
   /** Creates a new LlamaCppModel instance with the given configuration. */
-  static Expected<std::shared_ptr<LlamaCppModel>> create(LlamaCppConfig config);
+  static std::shared_ptr<LlamaCppModel> create(LlamaCppOptions options);
 
   /** Convenience factory for the common model-path-only case. */
-  static Expected<std::shared_ptr<LlamaCppModel>> create(const std::string &model_path);
+  static std::shared_ptr<LlamaCppModel> create(const std::string &model_path);
 
   /** Destroys the LlamaCppModel instance. */
   ~LlamaCppModel() override;
@@ -69,10 +69,5 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-/** Creates a new LlamaCppModel instance with the given configuration. */
-Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(LlamaCppConfig config);
 
-/** Convenience factory for the common model-path-only case. */
-Expected<std::shared_ptr<LlamaCppModel>> createLlamaCppModel(const std::string &model_path);
-
-} // namespace juno::harness
+} // namespace juno::sdk

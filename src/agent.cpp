@@ -7,9 +7,10 @@
 
 #include <algorithm>
 #include <exception>
+#include <unordered_set>
 #include <utility>
 
-namespace juno::harness {
+namespace juno::sdk {
 namespace {
 
 std::string parameter_schema(const std::vector<ToolParameter> &parameters) {
@@ -54,80 +55,85 @@ std::string memory_store_parameter_description(const MemoryManager &memory) {
 
 } // namespace
 
-Tool createTool(ToolOptions options) {
-  return Tool{ToolDefinition{std::move(options.name),
-                             std::move(options.description),
-                             parameter_schema(options.parameters)},
-              {},
+Tool Tool::create(ToolOptions options) {
+  if (options.name.empty())
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration, "tool name is required"});
+  if (options.description.empty())
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "tool description is required: " + options.name});
+  if (!options.handler)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "tool handler is required: " + options.name});
+  std::unordered_set<std::string> names;
+  for (const auto &parameter : options.parameters) {
+    if (parameter.name.empty() || parameter.type.empty())
+      throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                     "tool parameters require a name and type: " + options.name});
+    if (!names.insert(parameter.name).second)
+      throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                     "tool parameter names must be unique: " + parameter.name});
+  }
+  return Tool{ToolDefinition{std::move(options.name), std::move(options.description),
+                             parameter_schema(options.parameters)}, {},
               std::move(options.handler)};
 }
 
-Tool createTool(const std::string &name,
-                const std::string &description,
-                const std::vector<ToolParameter> &parameters,
-                JsonToolHandler handler) {
-  return createTool(ToolOptions{.name = name,
-                                .description = description,
-                                .parameters = parameters,
-                                .handler = std::move(handler)});
+Agent Agent::create(AgentOptions options) {
+  if (!options.model)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration, "agent model is required"});
+  if (options.max_inference_turns == 0)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "max_inference_turns must be greater than zero"});
+  if (options.generation.max_tokens == 0)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "generation.max_tokens must be greater than zero"});
+  if (options.generation.temperature < 0.0F || options.generation.temperature > 2.0F)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "generation.temperature must be between 0 and 2"});
+  std::unordered_set<std::string> names;
+  for (const auto &tool : options.tools) {
+    if (tool.definition.name.empty() || (!tool.handler && !tool.json_handler))
+      throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                     "agent tools must have a name and handler"});
+    if (!names.insert(tool.definition.name).second)
+      throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                     "agent tool names must be unique: " + tool.definition.name});
+  }
+  return Agent(std::move(options));
 }
 
-Agent::Agent(std::shared_ptr<Model> model, AgentSpec spec)
-    : model_(std::move(model)), spec_(std::move(spec)) {}
+Agent::Agent(AgentOptions options)
+    : model_(options.model), options_(std::move(options)), memory_(options_.memory) {}
 
 Conversation Agent::start_conversation() const {
-  return Conversation{model_, std::make_shared<const AgentSpec>(spec_), memory_};
+  return Conversation{model_, std::make_shared<const AgentOptions>(options_), memory_};
 }
 
-Conversation Agent::createConversation() const {
-  return start_conversation();
+void Agent::add_tool(Tool tool) {
+  if (tool.definition.name.empty() || (!tool.handler && !tool.json_handler))
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "agent tools must have a name and handler"});
+  const auto duplicate = std::any_of(options_.tools.begin(), options_.tools.end(),
+                                     [&tool](const Tool &value) {
+                                       return value.definition.name == tool.definition.name;
+                                     });
+  if (duplicate)
+    throw ConfigurationError(Error{ErrorCode::InvalidConfiguration,
+                                   "agent tool names must be unique: " + tool.definition.name});
+  options_.tools.push_back(std::move(tool));
 }
 
-Agent &Agent::setSystemPrompt(std::string system_prompt) {
-  spec_.system_prompt = std::move(system_prompt);
-  return *this;
-}
-
-Agent &Agent::setGenerationConfig(GenerationConfig generation) {
-  spec_.generation = generation;
-  return *this;
-}
-
-Agent &Agent::setTemperature(const float temperature) {
-  spec_.generation.temperature = temperature;
-  return *this;
-}
-
-Agent &Agent::setMaxTokens(const std::size_t max_tokens) {
-  spec_.generation.max_tokens = max_tokens;
-  return *this;
-}
-
-Agent &Agent::setReasoningEffort(const ReasoningEffort reasoning_effort) {
-  spec_.reasoning_effort = reasoning_effort;
-  return *this;
-}
-
-Agent &Agent::setMaxInferenceTurns(const std::size_t max_inference_turns) {
-  spec_.max_inference_turns = max_inference_turns;
-  return *this;
-}
-
-Agent &Agent::registerTool(Tool tool) {
-  spec_.tools.push_back(std::move(tool));
-  return *this;
-}
-
-Agent &Agent::setMemory(std::shared_ptr<MemoryManager> memory) {
+void Agent::set_memory(std::shared_ptr<MemoryManager> memory) {
   memory_ = std::move(memory);
-  if (memory_ && memory_->searchTool().enabled) {
-    const auto &config = memory_->searchTool();
+  options_.memory = memory_;
+  if (memory_ && memory_->search_tool().enabled) {
+    const auto &config = memory_->search_tool();
     const bool already_registered =
-        std::any_of(spec_.tools.begin(), spec_.tools.end(), [&config](const Tool &tool) {
+        std::any_of(options_.tools.begin(), options_.tools.end(), [&config](const Tool &tool) {
           return tool.definition.name == config.name;
         });
     if (!already_registered) {
-      registerTool(createTool(
+      auto tool = Tool::create(
           {.name = config.name,
            .description = config.description,
            .parameters = {{"query", "The durable fact or preference to look up", "string", true}},
@@ -143,17 +149,18 @@ Agent &Agent::setMemory(std::shared_ptr<MemoryManager> memory) {
                    {{"content", entry.content}, {"metadata", entry.metadata}, {"store", "memory"}});
              }
              return {true, output.dump()};
-           }}));
+           }});
+      add_tool(std::move(tool));
     }
   }
-  if (memory_ && memory_->addTool().enabled) {
-    const auto &config = memory_->addTool();
+  if (memory_ && memory_->add_tool().enabled) {
+    const auto &config = memory_->add_tool();
     const bool already_registered =
-        std::any_of(spec_.tools.begin(), spec_.tools.end(), [&config](const Tool &tool) {
+        std::any_of(options_.tools.begin(), options_.tools.end(), [&config](const Tool &tool) {
           return tool.definition.name == config.name;
         });
     if (!already_registered) {
-      registerTool(createTool(
+      auto tool = Tool::create(
           {.name = config.name,
            .description = config.description,
            .parameters = {{"content", "The durable fact or preference to remember", "string", true},
@@ -177,18 +184,18 @@ Agent &Agent::setMemory(std::shared_ptr<MemoryManager> memory) {
              if (!result)
                return {false, result.error().message};
              return {true, "Memory saved."};
-           }}));
+           }});
+      add_tool(std::move(tool));
     }
   }
-  return *this;
 }
 
 Conversation::Conversation(std::shared_ptr<Model> model,
-                           std::shared_ptr<const AgentSpec> spec,
+                           std::shared_ptr<const AgentOptions> options,
                            std::shared_ptr<MemoryManager> memory)
-    : model_(std::move(model)), spec_(std::move(spec)), memory_(std::move(memory)) {
-  if (!spec_->system_prompt.empty()) {
-    history_.push_back(Message{Role::System, spec_->system_prompt});
+    : model_(std::move(model)), options_(std::move(options)), memory_(std::move(memory)) {
+  if (!options_->system_prompt.empty()) {
+    history_.push_back(Message{Role::System, options_->system_prompt});
   }
 }
 
@@ -219,8 +226,8 @@ Expected<RunResult> Conversation::run(const std::string_view user_message,
 
   // Prepare the list of tool definitions for the generation request.
   std::vector<ToolDefinition> definitions;
-  definitions.reserve(spec_->tools.size());
-  for (const auto &tool : spec_->tools)
+  definitions.reserve(options_->tools.size());
+  for (const auto &tool : options_->tools)
     definitions.push_back(tool.definition);
 
   // Recall once for this user turn. Tool-driven inference turns should operate
@@ -240,7 +247,7 @@ Expected<RunResult> Conversation::run(const std::string_view user_message,
 
   // Run the inference loop for a maximum number of turns as specified in the
   // configuration.
-  for (std::size_t turn = 1; turn <= spec_->max_inference_turns; ++turn) {
+  for (std::size_t turn = 1; turn <= options_->max_inference_turns; ++turn) {
     if (stop_token.stop_requested()) {
       emit(callback, AgentEvent{EventType::Error, "agent run was cancelled", {}});
       return make_unexpected(Error{ErrorCode::Cancelled, "agent run was cancelled"});
@@ -261,8 +268,8 @@ Expected<RunResult> Conversation::run(const std::string_view user_message,
     }
     const GenerationRequest request{model_history,
                                     definitions,
-                                    spec_->generation,
-                                    spec_->reasoning_effort};
+                                    options_->generation,
+                                    options_->reasoning_effort};
     auto response = model_->generate(request, callback, stop_token);
     if (!response) {
       emit(callback, AgentEvent{EventType::Error, response.error().message, {}});
@@ -287,10 +294,10 @@ Expected<RunResult> Conversation::run(const std::string_view user_message,
       emit(callback, AgentEvent{EventType::ToolStarted, {}, call});
       std::string output;
       const auto registered =
-          std::find_if(spec_->tools.begin(), spec_->tools.end(), [&call](const Tool &tool) {
+          std::find_if(options_->tools.begin(), options_->tools.end(), [&call](const Tool &tool) {
             return tool.definition.name == call.name;
           });
-      if (registered == spec_->tools.end()) {
+      if (registered == options_->tools.end()) {
         output = tool_error_json("unknown tool: " + call.name);
       } else if (!registered->handler && !registered->json_handler) {
         output = tool_error_json("tool has no handler: " + call.name);
@@ -339,9 +346,9 @@ const std::vector<Message> &Conversation::history() const {
  */
 void Conversation::clear() {
   history_.clear();
-  if (!spec_->system_prompt.empty()) {
-    history_.push_back(Message{Role::System, spec_->system_prompt});
+  if (!options_->system_prompt.empty()) {
+    history_.push_back(Message{Role::System, options_->system_prompt});
   }
 }
 
-} // namespace juno::harness
+} // namespace juno::sdk

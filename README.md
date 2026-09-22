@@ -61,7 +61,7 @@ Each playground takes a path to a local GGUF model:
 ./build-llama/juno_weather_playground /absolute/path/to/model.gguf
 ```
 
-The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The planning and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Agent Runtime uses the model’s template by default; `LlamaCppConfig::chat_template_override` can supply a known compatible template name.
+The planning playground creates a session-preparation plan from raw WAV metadata and a mix template. The planning and mix playgrounds are independent ad-hoc agent loops with tools restricted to their respective domains. Each supports `/help`, `/clear`, `/history`, and `/quit`. The example tools simulate DAW operations and are intended to be replaced with calls into a production project service. Tool-capable models need a compatible chat template. Juno Agent Runtime uses the model’s template by default; `LlamaCppOptions::chat_template_override` can supply a known compatible template name.
 
 ## Unit tests
 
@@ -106,34 +106,32 @@ Minimal SDK use:
 #include <utility>
 #include "juno_harness/juno_harness.hpp"
 
-auto model_result = juno::harness::createLlamaCppModel({.model_path = "/path/to/model.gguf"});
-if (!model_result) return 1;
-auto model = model_result.value();
-juno::harness::Agent agent(model, {.system_prompt = "Be concise."});
+auto model = juno::sdk::LlamaCppModel::create({.model_path = "/path/to/model.gguf"});
+auto agent = juno::sdk::Agent::create({
+    .model = model,
+    .system_prompt = "Be concise.",
+});
 auto conversation = agent.start_conversation();
-auto result = conversation.run("Say hello.", [](const juno::harness::AgentEvent& event) {
+auto result = conversation.run("Say hello.", [](const juno::sdk::AgentEvent& event) {
   // TextDelta, ToolStarted, ToolCompleted, Completed, or Error.
 });
 ```
 
-The same API is also available in a simpler setter-based style:
+Tools are created and validated independently, and invalid options throw a typed exception:
 
 ```cpp
-auto model = juno::harness::createLlamaCppModel("/path/to/model.gguf");
-if (!model) return 1;
+auto tool = juno::sdk::Tool::create({
+    .name = "get_labels",
+    .description = "Return available track labels.",
+    .handler = [](const juno::sdk::JsonObject&) -> juno::sdk::ToolResult {
+      return {true, R"(["drums","bass","vocals"])", {}};
+    },
+});
+auto model = juno::sdk::LlamaCppModel::create({.model_path = "/path/to/model.gguf"});
+auto agent = juno::sdk::Agent::create({.model = model});
+agent.add_tool(std::move(tool));
 
-juno::harness::Agent agent(model.value());
-agent.setSystemPrompt("You are a helpful assistant.")
-     .setTemperature(0.7F)
-     .setMaxInferenceTurns(8)
-     .registerTool(juno::harness::createTool(
-         "get_labels", "Return available track labels.",
-         {{"format", "The desired output format", "string", false}},
-         [](const juno::harness::JsonObject&) -> juno::harness::ToolResult {
-           return {true, R"(["drums","bass","vocals"])", {}};
-         }));
-
-auto conversation = agent.createConversation();
+auto conversation = agent.start_conversation();
 auto result = conversation.run("Say hello.");
 ```
 
@@ -141,12 +139,12 @@ Reasoning effort is configured per agent and remains consistent across its
 conversations and tool-loop turns:
 
 ```cpp
-juno::harness::Agent planner(
-    model,
-    {.reasoning_effort = juno::harness::ReasoningEffort::High});
-juno::harness::Agent task_doer(
-    model,
-    {.reasoning_effort = juno::harness::ReasoningEffort::Low});
+auto planner = juno::sdk::Agent::create({
+    .model = model,
+    .reasoning_effort = juno::sdk::ReasoningEffort::High});
+auto task_doer = juno::sdk::Agent::create({
+    .model = model,
+    .reasoning_effort = juno::sdk::ReasoningEffort::Low});
 ```
 
 `None` disables thinking for compatible templates. `Low`, `Medium`, and `High`
@@ -154,17 +152,21 @@ enable thinking and pass the corresponding effort level to templates that
 support graded reasoning. Templates supporting only on/off reasoning treat all
 non-`None` levels as enabled.
 
-Tools bundle a `ToolDefinition` with a handler returning `Expected<std::string>`. The handler receives the model's argument JSON and owns argument validation and result serialization. `Expected<T>` contains either a value or an `Error`; use `make_unexpected(...)` when returning an error explicitly:
+Tools bundle a `ToolDefinition` with a handler returning `Expected<std::string>`. Runtime tool-handler failures remain recoverable results, while invalid SDK configuration throws a typed exception:
 
 ```cpp
-auto spec = juno::harness::AgentSpec{
+auto options = juno::sdk::AgentOptions{
     .system_prompt = "Be concise.",
     .tools = {{{
         {"get_labels", "Return the available track labels.", R"({"type":"object"})"},
-        [](std::string_view) -> juno::harness::Expected<std::string> {
+        [](std::string_view) -> juno::sdk::Expected<std::string> {
           return R"(["drums","bass","guitars","vocals"])");
         }}}};
-juno::harness::Agent agent(model, std::move(spec));
+auto agent = juno::sdk::Agent::create({
+    .model = model,
+    .system_prompt = options.system_prompt,
+    .tools = std::move(options.tools),
+});
 auto conversation = agent.start_conversation();
 ```
 
@@ -185,7 +187,7 @@ Conversation
 
 `LlamaCppModel` adapts the request into a llama.cpp chat prompt, tokenizes it, generates tokens, streams text events, and parses the completed output.
 
-Set `LlamaCppConfig::prompt_log_path` to append the exact post-template prompt sent to llama.cpp to a local diagnostic file. `LlamaCppConfig::batch_size` controls prompt decoding batch size; prompts larger than one batch are decoded in multiple chunks while remaining within `context_size`.
+Set `LlamaCppOptions::prompt_log_path` to append the exact post-template prompt sent to llama.cpp to a local diagnostic file. `LlamaCppOptions::batch_size` controls prompt decoding batch size; prompts larger than one batch are decoded in multiple chunks while remaining within `context_size`.
 
 The model also emits an `EventType::Prompt` event immediately before tokenization. Its `text` field contains that same complete rendered prompt, allowing applications to inspect or print it through the normal event callback.
 

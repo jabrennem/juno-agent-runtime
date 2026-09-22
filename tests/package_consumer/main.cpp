@@ -5,13 +5,13 @@
 
 namespace {
 
-class PackageConsumerModel final : public juno::harness::Model {
+class PackageConsumerModel final : public juno::sdk::Model {
 public:
-  juno::harness::Expected<juno::harness::GenerationResponse>
-  generate(const juno::harness::GenerationRequest &,
-           const juno::harness::EventCallback &, std::stop_token) override {
-    return juno::harness::make_unexpected(juno::harness::Error{
-        juno::harness::ErrorCode::GenerationFailed, "package consumer smoke test"});
+  juno::sdk::Expected<juno::sdk::GenerationResponse>
+  generate(const juno::sdk::GenerationRequest &,
+           const juno::sdk::EventCallback &, std::stop_token) override {
+    return juno::sdk::make_unexpected(juno::sdk::Error{
+        juno::sdk::ErrorCode::GenerationFailed, "package consumer smoke test"});
   }
 };
 
@@ -19,7 +19,7 @@ public:
 
 int main() {
   auto model = std::make_shared<PackageConsumerModel>();
-  juno::harness::Agent agent(model);
+  auto agent = juno::sdk::Agent::create({.model = model});
   auto conversation = agent.start_conversation();
   return conversation.history().empty() ? 0 : 1;
 }

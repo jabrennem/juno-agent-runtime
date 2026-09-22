@@ -7,11 +7,11 @@
 namespace
 {
 
-  using namespace juno::harness;
+  using namespace juno::sdk;
 
-  AgentSpec planning_spec()
+  AgentOptions planning_options()
   {
-    AgentSpec spec;
+    AgentOptions spec;
     spec.system_prompt = "You are SessionPrepPlanningAgent. Create an ordered "
                          "plan that turns raw multitrack WAV "
                          "files into a mix-ready session. Inspect both the "
@@ -56,15 +56,12 @@ int main(int argc, char **argv)
     return 2;
   }
 
-  auto model = createLlamaCppModel({.model_path = argv[1], .context_size = 4096});
-  if (!model)
-  {
-    std::cerr << "Model setup failed: " << model.error().message << '\n';
-    return 1;
-  }
+  auto model = LlamaCppModel::create({.model_path = argv[1], .context_size = 4096});
 
   // Create an agent with the planning spec and start a conversation.
-  Agent agent(model.value(), planning_spec());
+  auto options = planning_options();
+  options.model = model;
+  auto agent = Agent::create(std::move(options));
   auto conversation = agent.start_conversation();
   
   std::cout << "Session prep planning playground\n";

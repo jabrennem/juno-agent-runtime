@@ -8,7 +8,7 @@
 #include <fstream>
 #include <unordered_set>
 
-namespace juno::harness {
+namespace juno::sdk {
 namespace {
 
 class JsonMemoryStore final : public MemoryStore {
@@ -160,23 +160,23 @@ std::vector<std::shared_ptr<MemoryStore>> selected(const MemoryManagerOptions &o
 } // namespace
 
 MemoryManager::MemoryManager(MemoryManagerOptions options) : options_(std::move(options)) {
-  if (options_.searchTool.name.empty())
-    options_.searchTool.name = "search_memory";
-  if (options_.searchTool.description.empty())
-    options_.searchTool.description = "Search durable memory for relevant facts.";
-  if (options_.addTool.name.empty())
-    options_.addTool.name = "add_memory";
-  if (options_.addTool.description.empty())
-    options_.addTool.description =
+  if (options_.search_tool.name.empty())
+    options_.search_tool.name = "search_memory";
+  if (options_.search_tool.description.empty())
+    options_.search_tool.description = "Search durable memory for relevant facts.";
+  if (options_.add_tool.name.empty())
+    options_.add_tool.name = "add_memory";
+  if (options_.add_tool.description.empty())
+    options_.add_tool.description =
         "Save a durable user fact, preference, or recurring context for future conversations.";
 }
 
-MemoryManager &MemoryManager::addStore(std::shared_ptr<MemoryStore> store) {
+MemoryManager &MemoryManager::add_store(std::shared_ptr<MemoryStore> store) {
   options_.stores.push_back(std::move(store));
   return *this;
 }
 
-MemoryManager &MemoryManager::setPolicy(MemoryPolicy policy) {
+MemoryManager &MemoryManager::set_policy(MemoryPolicy policy) {
   options_.policy = policy;
   return *this;
 }
@@ -185,12 +185,12 @@ const MemoryPolicy &MemoryManager::policy() const {
   return options_.policy;
 }
 
-const MemoryToolConfig &MemoryManager::searchTool() const {
-  return options_.searchTool;
+const MemoryToolConfig &MemoryManager::search_tool() const {
+  return options_.search_tool;
 }
 
-const MemoryToolConfig &MemoryManager::addTool() const {
-  return options_.addTool;
+const MemoryToolConfig &MemoryManager::add_tool() const {
+  return options_.add_tool;
 }
 
 const std::vector<std::shared_ptr<MemoryStore>> &MemoryManager::stores() const {
@@ -223,22 +223,23 @@ MemoryManager::recall(std::string_view query, const std::vector<std::string> &st
   return result;
 }
 
-std::shared_ptr<MemoryManager> createMemoryManager(MemoryManagerOptions options) {
+std::shared_ptr<MemoryManager> create_memory_manager(MemoryManagerOptions options) {
   return std::make_shared<MemoryManager>(std::move(options));
 }
 
-std::shared_ptr<MemoryStore> createMemoryStore(const std::string &name, const std::string &path) {
-  return createMemoryStore(MemoryStoreOptions{.name = name, .path = path});
+std::shared_ptr<MemoryStore> create_memory_store(const std::string &name, const std::string &path) {
+  return create_memory_store(MemoryStoreOptions{.name = name, .path = path});
 }
 
-std::shared_ptr<MemoryStore> createMemoryStore(MemoryStoreOptions options) {
+std::shared_ptr<MemoryStore> create_memory_store(MemoryStoreOptions options) {
   return std::make_shared<JsonMemoryStore>(std::move(options));
 }
 
-std::shared_ptr<MemoryStore> createMemoryStore(const std::string &path) {
+std::shared_ptr<MemoryStore> create_memory_store(const std::string &path) {
   const auto filename = std::filesystem::path(path).filename().string();
   const auto name = std::filesystem::path(filename).stem().string();
-  return createMemoryStore(name.empty() ? "memory" : name, path);
+  return create_memory_store(name.empty() ? "memory" : name, path);
 }
 
-} // namespace juno::harness
+
+} // namespace juno::sdk
